@@ -5,7 +5,9 @@ import (
     "net/http"
     "path/filepath"
     "io"
-    "resistance/logger"
+    "os"
+    "log"
+    "fmt"
     "resistance/users"
 )
 
@@ -17,23 +19,28 @@ const (
     HOME_TEMPLATE = "home.html"
 )
 
-var accessLogger *logger.Logger = nil
+var accessLogger *log.Logger
 
 func indexHandler(writer http.ResponseWriter, request *http.Request) {
-    accessLogger.LogMessage(request.URL.Path + " was requested")
+    accessLogger.Println(request.URL.Path + " was requested")
     renderTemplate(writer, INDEX_TEMPLATE)
 }
 
 func loginHandler(writer http.ResponseWriter, request *http.Request) {
-    accessLogger.LogMessage(request.URL.Path + " was requested")
+    accessLogger.Println(request.URL.Path + " was requested")
     err := request.ParseForm()
     if err != nil {
-        accessLogger.LogMessage("Error parsing form values")
+        accessLogger.Println("Error parsing form values")
     } else {
         cookie, validUser := users.ValidateUser(request)
+        for i := 0; i < len(request.Cookies()); i++ {
+            accessLogger.Printf("cookie from request : %v", request.Cookies()[i])
+        }
+        accessLogger.Printf("validUser: %v", validUser)
         if validUser {
             if cookie != nil {
-                writer.Header().Set("Set-Cookie", cookie.String())
+                accessLogger.Println("cookie was created" + cookie.String())
+                http.SetCookie(writer, cookie)
             }
             http.Redirect(writer, request, "/home.html", 302)
         } else {
@@ -43,7 +50,7 @@ func loginHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func signupHandler(writer http.ResponseWriter, request *http.Request) {
-    accessLogger.LogMessage(request.URL.Path + " was requested")
+    accessLogger.Println(request.URL.Path + " was requested")
     renderTemplate(writer, SIGNUP_TEMPLATE)
 }
 
@@ -62,7 +69,14 @@ func faviconHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func main() {
-    accessLogger = logger.InitializeLogger("accessLog.log")
+    logFile, err := os.OpenFile("logs/accessLog.log", os.O_RDWR|os.O_APPEND, 0666)
+    if err != nil {
+        fmt.Fprintln(os.Stderr, "Error accessing log file... Abort!")
+        return
+    }
+    defer logFile.Close()
+    accessLogger = log.New(logFile, "", log.Ldate|log.Ltime|log.Lshortfile)
+    
     users.InitializeCookieJar()
     
     http.HandleFunc("/", indexHandler)
