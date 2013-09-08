@@ -8,6 +8,7 @@ import (
     "os"
     "log"
     "fmt"
+    "errors"
     "resistance/users"
 )
 
@@ -23,61 +24,101 @@ var accessLogger *log.Logger
 
 func indexHandler(writer http.ResponseWriter, request *http.Request) {
     accessLogger.Println(request.URL.Path + " was requested")
-    renderTemplate(writer, INDEX_TEMPLATE)
+    
+    // If this person has a valid cookie, send them to their homepage
+    _, validUser := users.ValidateUserCookie(request)
+    if validUser {
+        accessLogger.Println("Valid User, redirecting to /home.html")
+        http.Redirect(writer, request, "/home.html", 302)
+    }
+    
+    renderTemplate(writer, INDEX_TEMPLATE, make(map[string]string))
 }
 
 func loginHandler(writer http.ResponseWriter, request *http.Request) {
     accessLogger.Println(request.URL.Path + " was requested")
+    
+    // If this person has a valid cookie, send them to their homepage instead
+    _, validUser := users.ValidateUserCookie(request)
+    if validUser {
+        accessLogger.Println("Valid User, redirecting to /home.html")
+        http.Redirect(writer, request, "/home.html", 302)
+    }
+    
     err := request.ParseForm()
     if err != nil {
         accessLogger.Println("Error parsing form values")
-    } else {
+    } else if len(request.Form) > 0 {
         cookie, validUser := users.ValidateUser(request)
-        for i := 0; i < len(request.Cookies()); i++ {
-            accessLogger.Printf("cookie from request : %v", request.Cookies()[i])
-        }
-        accessLogger.Printf("validUser: %v", validUser)
         if validUser {
-            if cookie != nil {
-                accessLogger.Println("cookie was created" + cookie.String())
-                http.SetCookie(writer, cookie)
-            }
+            http.SetCookie(writer, cookie)
             http.Redirect(writer, request, "/home.html", 302)
         } else {
-            renderTemplate(writer, LOGIN_TEMPLATE)
+            invalidUser := make(map[string]string)
+            invalidUser["Error"] = "Username and password did not match."
+            renderTemplate(writer, LOGIN_TEMPLATE, invalidUser)
+            return
         }
     }
+    
+    renderTemplate(writer, LOGIN_TEMPLATE, make(map[string]string))
 }
 
 func signupHandler(writer http.ResponseWriter, request *http.Request) {
     accessLogger.Println(request.URL.Path + " was requested")
-    renderTemplate(writer, SIGNUP_TEMPLATE)
+    renderTemplate(writer, SIGNUP_TEMPLATE, make(map[string]string))
 }
 
 func homeHandler(writer http.ResponseWriter, request *http.Request) {
-    renderTemplate(writer, HOME_TEMPLATE)
+    accessLogger.Println(request.URL.Path + " was requested")
+    
+    // If this person has an invalid cookie, send them to the login page instead
+    user, validUser := users.ValidateUserCookie(request)
+    if !validUser {
+        accessLogger.Println("Invalid User, redirecting to /login.html")
+        http.Redirect(writer, request, "/login.html", 302)
+    }
+    
+    renderTemplate(writer, HOME_TEMPLATE, user)
 }
 
-func renderTemplate(writer io.Writer, name string) {
+func renderTemplate(writer io.Writer, name string, parameters interface{}) {
     filePath := filepath.Join(TEMPLATE_PATH, name)
     templates := template.Must(template.ParseFiles(filePath))
-    templates.Execute(writer, nil)
+    templates.Execute(writer, parameters)
 }
 
 func faviconHandler(writer http.ResponseWriter, request *http.Request) {
     // no-op
 }
 
-func main() {
-    logFile, err := os.OpenFile("logs/accessLog.log", os.O_RDWR|os.O_APPEND, 0666)
+func createLogger(filename string) (*log.Logger, error) {
+    logFile, err := os.OpenFile(filename, os.O_RDWR|os.O_APPEND, 0666)
     if err != nil {
-        fmt.Fprintln(os.Stderr, "Error accessing log file... Abort!")
+        logFile, err = os.Create(filename)
+        if err != nil {
+            return nil, errors.New("Error accessing access log file... Abort!") 
+        }
+    }
+    logger := log.New(logFile, "", log.Ldate|log.Ltime|log.Lshortfile)
+    return logger, nil
+}
+
+func main() {
+    var err error
+    accessLogger, err = createLogger("logs/accessLog.log")
+    if err != nil {
+        fmt.Println(err)
         return
     }
-    defer logFile.Close()
-    accessLogger = log.New(logFile, "", log.Ldate|log.Ltime|log.Lshortfile)
+    accessLogger.Println("Starting TheResistance")
     
-    users.InitializeCookieJar()
+    userLogger, err := createLogger("logs/userLog.log")
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+    users.Initialize(userLogger)
     
     http.HandleFunc("/", indexHandler)
     http.HandleFunc("/favicon.ico", faviconHandler)
@@ -86,4 +127,3 @@ func main() {
     http.HandleFunc("/home.html", homeHandler)
     http.ListenAndServe(":8080", nil)
 }
-

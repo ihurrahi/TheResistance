@@ -1,11 +1,16 @@
 <html>
-<title> Sign up </title>
+<head>
+<title> Log in </title>
+</head>
 <body>
+{{if .Error}}
+<mark>{{.Error}}</mark>
+{{end}}
 <form name="signup">
 Username: <input type="text" name="username"> <br>
 Password: <input type="password" name="password"> <br>
 Repeat Password: <input type="password" name="repeatPassword"> <br>
-<input type="submit" value = "Submit">
+<input type="submit" value="Submit">
 </form>
 </body>
 </html>
