@@ -8,6 +8,7 @@ _obj
 _test
 bin
 logs
+src/github.com
 
 # Architecture specific extensions/prefixes
 *.[568vq]

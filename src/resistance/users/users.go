@@ -7,18 +7,23 @@ import (
     "net/http"
     "net/http/cookiejar"
     "database/sql"
-    _ "github.com/go-sql-driver/mysql"
 )
 
 const (
     USERNAME_KEY = "username"
     PASSWORD_KEY = "password"
+    REPEAT_PASSWORD_KEY = "repeatPassword"
     COOKIE_NAME = "RC"
+    
+    CREDENTIALS_QUERY = "select user_id from users where username = ? and password = ?"
+    LOOKUP_BY_USERNAME_QUERY = "select user_id from users where username = ?"
+    LOOKUP_BY_USERID_QUERY = "select username from users where user_id = ?"
+    PERSIST_USER_QUERY = "insert into users (`username`, `password`) values (?, ?)"
 )
 
 type User struct {
     Username string
-    Id int
+    UserId int
 }
 
 var cookieJar *cookiejar.Jar
@@ -27,10 +32,10 @@ var userLog *log.Logger
 var myURL *url.URL
 var db *sql.DB
 
-func lookupUser(id int) *User {
+func lookupUserById(id int) *User {
     var user *User
     var username string
-    err := db.QueryRow("select username from users where id = ?", id).Scan(&username)
+    err := db.QueryRow(LOOKUP_BY_USERID_QUERY, id).Scan(&username)
     switch {
     case err == sql.ErrNoRows:
         userLog.Println("Warning: No user found for id: " + strconv.Itoa(id))
@@ -39,7 +44,7 @@ func lookupUser(id int) *User {
         userLog.Fatalln("Error while looking up user: " + err.Error())
     default:
         user = new(User)
-        user.Id = id
+        user.UserId = id
         user.Username = username
         userLog.Println("Found a User! " + user.Username)
     }
@@ -47,9 +52,34 @@ func lookupUser(id int) *User {
     return user
 }
 
+func lookupUserByUsername(username string) *User {
+    var user *User
+    var id int
+    err := db.QueryRow(LOOKUP_BY_USERNAME_QUERY, username).Scan(&id)
+    switch {
+    case err == sql.ErrNoRows:
+        userLog.Println("Warning: No user found for id: " + strconv.Itoa(id))
+        user = nil
+    case err != nil:
+        userLog.Fatalln("Error while looking up user: " + err.Error())
+    default:
+        user = new(User)
+        user.UserId = id
+        user.Username = username
+        userLog.Println("Found a User! " + user.Username)
+    }
+    
+    return user
+}
+
+func persistUser(username string, password string) error {
+    _, err := db.Exec(PERSIST_USER_QUERY, username, password)
+    return err
+}
+
 func validateUserCredentials(user string, pass string) (int, bool) {
     var id int
-    err := db.QueryRow("select id from users where username = ? and password = ?", user, pass).Scan(&id)
+    err := db.QueryRow(CREDENTIALS_QUERY, user, pass).Scan(&id)
     switch {
     case err == sql.ErrNoRows:
         userLog.Println("Login failed for username: " + user + " using password: " + pass)
@@ -59,6 +89,44 @@ func validateUserCredentials(user string, pass string) (int, bool) {
     default:
     }
     return id, true
+}
+
+func UserSignUp(request *http.Request) (bool, string) {
+    username := request.FormValue(USERNAME_KEY)
+    user := lookupUserByUsername(username)
+    if user != nil {
+        return true, "Username " + username + " already exists!"
+    }
+    
+    if len(username) < 3 {
+        return true, "Username must be at least 3 characters long."
+    }
+    
+    if len(username) > 10 {
+        return true, "Username must be at most 10 characters long."
+    }
+    
+    password := request.FormValue(PASSWORD_KEY)
+    repeatPassword := request.FormValue(REPEAT_PASSWORD_KEY)
+    if password != repeatPassword {
+        return true, "Passwords do not match"
+    }
+    
+    if len(password) < 3 {
+        return true, "Password must be at least 3 characters long."
+    }
+    
+    if len(password) > 30 {
+        return true, "Password must be at most 30 characters long."
+    }
+    
+    err := persistUser(username, password)
+    if err != nil {
+        userLog.Println("Error persisting user: " + err.Error())
+        return true, "Error creating user"
+    }
+    
+    return false, ""
 }
 
 func ValidateUserCookie(request *http.Request) (*User, bool) {
@@ -71,7 +139,7 @@ func ValidateUserCookie(request *http.Request) (*User, bool) {
     cookies := cookieJar.Cookies(myURL)
     for i := 0; i < len(cookies); i++ {
         if cookies[i].String() == cookie.String() {
-            user := lookupUser(cookieToUserIdMap[cookie.Value])
+            user := lookupUserById(cookieToUserIdMap[cookie.Value])
             return user, true
         }
     }
@@ -107,7 +175,7 @@ func generateNewCookie(username string) *http.Cookie {
     return cookie
 }
 
-func Initialize(logger *log.Logger) {
+func Initialize(logger *log.Logger, database *sql.DB) {
     var err error
     cookieJar, err = cookiejar.New(nil)
     if err != nil {
@@ -117,11 +185,8 @@ func Initialize(logger *log.Logger) {
     cookieToUserIdMap = make(map[string]int)
     
     userLog = logger
+    db = database
     
     myURL = &url.URL{Scheme: "http"}
     
-    db, err = sql.Open("mysql", "resistance:resistance@/resistance")
-    if err != nil {
-        panic(err)
-    }
 }
