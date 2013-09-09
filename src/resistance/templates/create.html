@@ -1,0 +1,19 @@
+<html>
+<title>
+Create
+</title>
+<body>
+Create a new game:
+<form name="create">
+<br>
+<label for="host">Host: </label>
+<input type="text" name="host_username" value="{{.Username}}" disabled>
+<input type="hidden" name="host" value="{{.UserId}}">
+<br>
+<label for="title">Game Name: </label>
+<input type="text" name="title">
+<br>
+<input type="submit" value="Create">
+</form>
+</body>
+</html>
