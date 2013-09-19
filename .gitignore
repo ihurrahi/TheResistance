@@ -9,6 +9,7 @@ _test
 bin
 logs
 src/github.com
+src/code.google.com
 
 # Architecture specific extensions/prefixes
 *.[568vq]

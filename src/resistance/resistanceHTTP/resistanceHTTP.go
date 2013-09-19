@@ -230,6 +230,7 @@ func main() {
     http.HandleFunc("/lobby.html", lobbyHandler)
     http.HandleFunc("/history.html", historyHandler)
     http.HandleFunc("/game.html", gameHandler)
+    http.Handle("/socket.io.js", http.FileServer(http.Dir("src/github.com/justinfx/go-socket.io/bin/www/vendor/socket.io-client")))
     
     resistanceLogger.Println("Starting TheResistance")
     
