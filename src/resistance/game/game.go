@@ -1,9 +1,8 @@
 package game
 
 import (
-    "log"
-    "net/http"    
-    "database/sql"
+    "net/http"
+    "resistance/utils"
 )
 
 const (
@@ -15,10 +14,12 @@ const (
     CREATE_GAME_QUERY = "insert into games (`title`, `host_id`, `status`) values (?, ?, \"" + GAME_STATUS_LOBBY + "\")"
 )
 
-var gameLogger *log.Logger
-var db *sql.DB
-
 func CreateGame(request *http.Request) (int64, error) {
+    db, err := utils.ConnectToDB()
+    if err != nil {
+        return 0, err
+    }
+
     title := request.FormValue(TITLE_KEY)
     hostId := request.FormValue(HOST_ID_KEY)
     result, err := db.Exec(CREATE_GAME_QUERY, title, hostId)
@@ -30,9 +31,4 @@ func CreateGame(request *http.Request) (int64, error) {
         return 0, err
     }
     return id, nil
-}
-
-func Initialize(logger *log.Logger, database *sql.DB) {
-    gameLogger = logger
-    db = database
 }

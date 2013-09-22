@@ -5,22 +5,14 @@ import (
     "net/http"
     "path/filepath"
     "io"
-    "os"
-    "log"
-    "fmt"
-    "errors"
     "strconv"
-    "database/sql"
-    _ "github.com/go-sql-driver/mysql"
     "resistance/users"
     "resistance/game"
+    "resistance/utils"
 )
 
 const (
-    RESISTANCE_LOG_PATH = "logs/resistance.log"
-    USER_LOG_PATH = "logs/userLog.log"
-    GAME_LOG_PATH = "logs/gameLog.log"
-    TEMPLATE_PATH = "src/resistance/templates"
+    TEMPLATE_PATH = "src/resistance/frontend"
     INDEX_TEMPLATE = "index.html"
     LOGIN_TEMPLATE = "login.html"
     SIGNUP_TEMPLATE = "signup.html"
@@ -31,19 +23,17 @@ const (
     GAME_TEMPLATE = "game.html"
 )
 
-var resistanceLogger *log.Logger
-
 func faviconHandler(writer http.ResponseWriter, request *http.Request) {
     // no-op
 }
 
 func indexHandler(writer http.ResponseWriter, request *http.Request) {
-    resistanceLogger.Println(request.URL.Path + " was requested")
+    utils.LogMessage(request.URL.Path + " was requested", utils.RESISTANCE_LOG_PATH)
     
     // If this person has a valid cookie, send them to their homepage
-    _, validUser := users.ValidateUserCookie(request)
+    _, validUser := users.ValidateUserCookie(request.Cookies())
     if validUser {
-        resistanceLogger.Println("Valid User, redirecting to /home.html")
+        utils.LogMessage("Valid User, redirecting to /home.html", utils.RESISTANCE_LOG_PATH)
         http.Redirect(writer, request, "/home.html", 302)
     }
     
@@ -51,18 +41,18 @@ func indexHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func loginHandler(writer http.ResponseWriter, request *http.Request) {
-    resistanceLogger.Println(request.URL.Path + " was requested")
+    utils.LogMessage(request.URL.Path + " was requested", utils.RESISTANCE_LOG_PATH)
     
     // If this person has a valid cookie, send them to their homepage instead
-    _, validUser := users.ValidateUserCookie(request)
+    _, validUser := users.ValidateUserCookie(request.Cookies())
     if validUser {
-        resistanceLogger.Println("Valid User, redirecting to /home.html")
+        utils.LogMessage("Valid User, redirecting to /home.html", utils.RESISTANCE_LOG_PATH)
         http.Redirect(writer, request, "/home.html", 302)
     }
     
     err := request.ParseForm()
     if err != nil {
-        resistanceLogger.Println("Error parsing form values")
+        utils.LogMessage("Error parsing form values", utils.RESISTANCE_LOG_PATH)
     } else if len(request.Form) > 0 {
         cookie, validUser := users.ValidateUser(request)
         if validUser {
@@ -80,11 +70,11 @@ func loginHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func signupHandler(writer http.ResponseWriter, request *http.Request) {
-    resistanceLogger.Println(request.URL.Path + " was requested")
+    utils.LogMessage(request.URL.Path + " was requested", utils.RESISTANCE_LOG_PATH)
     
     err := request.ParseForm()
     if err != nil {
-        resistanceLogger.Println("Error parsing form values")
+        utils.LogMessage("Error parsing form values", utils.RESISTANCE_LOG_PATH)
     } else if len(request.Form) > 0 {
         hasSignUpError, errorMessage := users.UserSignUp(request)
         if hasSignUpError {
@@ -102,7 +92,7 @@ func signupHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func homeHandler(writer http.ResponseWriter, request *http.Request) {
-    resistanceLogger.Println(request.URL.Path + " was requested")
+    utils.LogMessage(request.URL.Path + " was requested", utils.RESISTANCE_LOG_PATH)
     
     user := requiresLogin(writer, request)
     
@@ -110,13 +100,13 @@ func homeHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func createGameHandler(writer http.ResponseWriter, request *http.Request) {
-    resistanceLogger.Println(request.URL.Path + " was requested")
+    utils.LogMessage(request.URL.Path + " was requested", utils.RESISTANCE_LOG_PATH)
     
     user := requiresLogin(writer, request)
     
     err := request.ParseForm()
     if err != nil {
-        resistanceLogger.Println("Error parsing form values")
+        utils.LogMessage("Error parsing form values", utils.RESISTANCE_LOG_PATH)
     } else if len(request.Form) > 0 {
         gameId, err := game.CreateGame(request)
         if err == nil {
@@ -130,7 +120,7 @@ func createGameHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func lobbyHandler(writer http.ResponseWriter, request *http.Request) {
-    resistanceLogger.Println(request.URL.Path + " was requested")
+    utils.LogMessage(request.URL.Path + " was requested", utils.RESISTANCE_LOG_PATH)
     
     user := requiresLogin(writer, request)
     
@@ -138,7 +128,7 @@ func lobbyHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func historyHandler(writer http.ResponseWriter, request *http.Request) {
-    resistanceLogger.Println(request.URL.Path + " was requested")
+    utils.LogMessage(request.URL.Path + " was requested", utils.RESISTANCE_LOG_PATH)
     
     user := requiresLogin(writer, request)
     
@@ -146,15 +136,15 @@ func historyHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func gameHandler(writer http.ResponseWriter, request *http.Request) {
-    resistanceLogger.Println(request.URL.Path + " was requested")
+    utils.LogMessage(request.URL.Path + " was requested", utils.RESISTANCE_LOG_PATH)
     
     _ = requiresLogin(writer, request)
     
     err := request.ParseForm()
     if err != nil {
-        resistanceLogger.Println(err.Error())
+        utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
     }
-    gameInfo := make(map[string]string)
+    gameInfo := make(map[string]interface{})
     gameInfo["GameId"] = request.FormValue("gameId")
     renderTemplate(writer, GAME_TEMPLATE, gameInfo)
 }
@@ -167,60 +157,16 @@ func renderTemplate(writer io.Writer, name string, parameters interface{}) {
 
 func requiresLogin(writer http.ResponseWriter, request *http.Request) *users.User {
     // If this person has an invalid cookie, send them to the login page instead
-    user, validUser := users.ValidateUserCookie(request)
+    user, validUser := users.ValidateUserCookie(request.Cookies())
     if !validUser {
-        resistanceLogger.Println("Invalid User, redirecting to /login.html")
+        utils.LogMessage("Invalid User, redirecting to /login.html", utils.RESISTANCE_LOG_PATH)
         http.Redirect(writer, request, "/login.html", 302)
     }
     return user
 }
 
-func createLogger(filename string) (*log.Logger, error) {
-    logFile, err := os.OpenFile(filename, os.O_RDWR|os.O_APPEND, 0666)
-    if err != nil {
-        logFile, err = os.Create(filename)
-        if err != nil {
-            return nil, errors.New("Error accessing access log file... Abort!") 
-        }
-    }
-    logger := log.New(logFile, "", log.Ldate|log.Ltime|log.Lshortfile)
-    return logger, nil
-}
-
 func main() {
-    var err error
-    
-    resistanceLogger, err = createLogger(RESISTANCE_LOG_PATH)
-    if err != nil {
-        fmt.Println(err)
-        return
-    }
-    
-    userLogger, err := createLogger(USER_LOG_PATH)
-    if err != nil {
-        fmt.Println(err)
-        return
-    }
-    
-    gameLogger, err := createLogger(GAME_LOG_PATH)
-    if err != nil {
-        fmt.Println(err)
-        return
-    }
-    
-    db, err := sql.Open("mysql", "resistance:resistance@unix(/var/run/mysql/mysql.sock)/resistance")
-    if err != nil {
-        resistanceLogger.Fatalln(err.Error())
-    }
-    err = db.Ping()
-    if err != nil {
-        resistanceLogger.Fatalln(err.Error())
-    }
-    resistanceLogger.Println("Database connection successful")
-    
-    users.Initialize(userLogger, db)
-    game.Initialize(gameLogger, db)
-    
+
     http.HandleFunc("/", indexHandler)
     http.HandleFunc("/favicon.ico", faviconHandler)
     http.HandleFunc("/login.html", loginHandler)
@@ -231,8 +177,9 @@ func main() {
     http.HandleFunc("/history.html", historyHandler)
     http.HandleFunc("/game.html", gameHandler)
     http.Handle("/socket.io.js", http.FileServer(http.Dir("src/github.com/justinfx/go-socket.io/bin/www/vendor/socket.io-client")))
+    http.Handle("/game.js", http.FileServer(http.Dir("src/resistance/frontend")))
     
-    resistanceLogger.Println("Starting TheResistance")
+    utils.LogMessage("Starting TheResistance", utils.RESISTANCE_LOG_PATH)
     
     http.ListenAndServe(":8080", nil)
 }

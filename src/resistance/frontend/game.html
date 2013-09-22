@@ -1,0 +1,26 @@
+<html>
+<head>
+<script src="socket.io.js"></script>
+<script src="game.js"></script>
+<script type="text/javascript">
+socket.connect();
+sendResistanceMessage("firstConnection")
+</script>
+</head>
+<title>
+Game
+</title>
+<body>
+<div id="information">
+Current players:
+<table id="players">
+<td>
+</td>
+</table>
+</div>
+<br>
+<div id="action">
+<input type="button" onClick=doAction({{.GameId}}) value = "start" disabled/>
+</div>
+</body>
+</html>
