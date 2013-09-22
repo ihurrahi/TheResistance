@@ -8,6 +8,6 @@ While playing this game without the actual board game, I noticed it was hard to 
 
 Dependencies
 ------------
-*Go
-*github.com/go-sql-driver/mysql
-*github.com/justinfx/go-socket.io
+* Go
+* github.com/go-sql-driver/mysql
+* github.com/justinfx/go-socket.io
