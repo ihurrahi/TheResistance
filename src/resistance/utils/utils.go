@@ -10,6 +10,9 @@ import (
 )
 
 const (
+    WSP_PORT = 8081
+    GAME_REP_REQ_PORT = 8082
+    GAME_PUB_SUB_PORT = 8083
     RESISTANCE_LOG_PATH = "logs/resistance.log"
     USER_LOG_PATH = "logs/userLog.log"
     GAME_LOG_PATH = "logs/gameLog.log"

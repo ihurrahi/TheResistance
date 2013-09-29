@@ -143,10 +143,13 @@ func gameHandler(writer http.ResponseWriter, request *http.Request) {
     err := request.ParseForm()
     if err != nil {
         utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
+    } else if len(request.Form) > 0 {
+        gameInfo := make(map[string]interface{})
+        gameInfo["GameId"] = request.FormValue("gameId")
+        renderTemplate(writer, GAME_TEMPLATE, gameInfo)
+    } else {
+        http.Redirect(writer, request, "/home.html", 302)
     }
-    gameInfo := make(map[string]interface{})
-    gameInfo["GameId"] = request.FormValue("gameId")
-    renderTemplate(writer, GAME_TEMPLATE, gameInfo)
 }
 
 func renderTemplate(writer io.Writer, name string, parameters interface{}) {

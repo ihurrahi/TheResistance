@@ -11,3 +11,4 @@ Dependencies
 * Go
 * github.com/go-sql-driver/mysql
 * github.com/justinfx/go-socket.io
+* ZeroMQ
