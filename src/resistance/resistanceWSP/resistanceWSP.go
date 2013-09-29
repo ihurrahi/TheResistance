@@ -3,79 +3,60 @@ package main
 import (
     "net/http"
     "log"
-    "strings"
-    "encoding/json"
+    "strconv"
     "github.com/justinfx/go-socket.io/socketio"
+    zmq "github.com/alecthomas/gozmq"
     "resistance/utils"
-    "resistance/users"
 )
 
-var allConnections []*socketio.Conn = make([]*socketio.Conn, 0)
+var allConnections map[*socketio.Conn]bool = make(map[*socketio.Conn]bool)
 
-func notifyNewPlayer(newUser string) {
-    type Message struct {
-        Message string
-        UserName string
-    }
+func handleMessage(zmqSocket *zmq.Socket, socket *socketio.Conn, msg socketio.Message) {
+    zmqSocket.Send([]byte(msg.Data()), 0)
+    utils.LogMessage("Sending to game backend", utils.RESISTANCE_LOG_PATH)
+    utils.LogMessage(msg.Data(), utils.RESISTANCE_LOG_PATH)
     
-    var msg = Message{Message:"newUser", UserName:newUser}
+    reply, _ := zmqSocket.Recv(0)
+    utils.LogMessage("Reply received", utils.RESISTANCE_LOG_PATH)
+    utils.LogMessage(string(reply), utils.RESISTANCE_LOG_PATH)
     
-    for i := range allConnections {
-        marshalledJSON, _ := json.Marshal(msg)
-        allConnections[i].Send(marshalledJSON)
-    }
-}
-
-func processMessage(msg socketio.Message) {
-    type MessageHolder struct {
-        Message string
-        UserCookie string
-    }
-    var parsedMessage MessageHolder
-    data := msg.Data()
-    
-    utils.LogMessage(data, utils.RESISTANCE_LOG_PATH)
-    err := json.Unmarshal([]byte(data), &parsedMessage)
-    if err != nil {
-        utils.LogMessage("Error parsing message: " + data, utils.RESISTANCE_LOG_PATH)
-        return
-    }
-    
-    cookies := make([]*http.Cookie, 1)
-    parsedCookie := strings.Split(parsedMessage.UserCookie, "=")
-    cookies[0] = &http.Cookie{Name:parsedCookie[0], Value:parsedCookie[1]}
-    user, success := users.ValidateUserCookie(cookies)
-    if !success {
-        utils.LogMessage("Something went wrong when validating the user", utils.RESISTANCE_LOG_PATH)
-    }
-
-    switch {
-        case parsedMessage.Message == "firstConnection": notifyNewPlayer(user.Username)
-    }
+    socket.Send(reply)
+    utils.LogMessage("Sent to frontend", utils.RESISTANCE_LOG_PATH)
 }
 
 func main() {
+    // Setup ZMQ
+    context, _ := zmq.NewContext()
+    zmqSocket, _ := context.NewSocket(zmq.REQ)
+    defer context.Close()
+    defer zmqSocket.Close()
+    
+    zmqSocket.Connect("tcp://localhost:" + strconv.Itoa(utils.GAME_REP_REQ_PORT))
+    utils.LogMessage("WSP connected to port " + strconv.Itoa(utils.GAME_REP_REQ_PORT), utils.RESISTANCE_LOG_PATH)
+    
+    // Setup Socket.IO
     config := socketio.DefaultConfig
     config.Origins = []string{"*:8080"}
     sio := socketio.NewSocketIO(&config)
 
     sio.OnConnect(func(c *socketio.Conn) {
-        allConnections = append(allConnections, c)
+        allConnections[c] = true
     })
 
     sio.OnDisconnect(func(c *socketio.Conn) {
+        delete(allConnections, c)
     })
 
     sio.OnMessage(func(c *socketio.Conn, msg socketio.Message) {
         utils.LogMessage(c.String() + msg.Data(), utils.RESISTANCE_LOG_PATH)
-        processMessage(msg)
+        go handleMessage(zmqSocket, c, msg)
     })
 
+    // Start server
     mux := sio.ServeMux()
     mux.Handle("/", http.FileServer(http.Dir("src/github.com/socket.io-client")))
 
-    if err := http.ListenAndServe(":8081", mux); err != nil {
+    if err := http.ListenAndServe(":" + strconv.Itoa(utils.WSP_PORT), mux); err != nil {
         log.Fatal("ListenAndServe:", err)
     }
 }
-
