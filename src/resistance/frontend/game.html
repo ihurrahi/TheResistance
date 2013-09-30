@@ -4,13 +4,15 @@
 <script src="game.js"></script>
 <script type="text/javascript">
 socket.connect();
-sendResistanceMessage("firstConnection")
+playerConnect({{.GameId}});
 </script>
 </head>
 <title>
 Game
 </title>
 <body>
+<div id="alerts">
+</div>
 <div id="information">
 Current players:
 <table id="players">

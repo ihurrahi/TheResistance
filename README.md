@@ -9,6 +9,6 @@ While playing this game without the actual board game, I noticed it was hard to 
 Dependencies
 ------------
 * Go
-* github.com/go-sql-driver/mysql
-* github.com/justinfx/go-socket.io
-* ZeroMQ
+* Go-MySQL (github.com/go-sql-driver/mysql)
+* Go-Socket.IO (github.com/justinfx/go-socket.io)
+* ZeroMQ (github.com/alecthomas/gozmq)
