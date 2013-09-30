@@ -10,14 +10,15 @@ import (
 )
 
 const (
-    WSP_PORT = 8081
-    GAME_REP_REQ_PORT = 8082
-    GAME_PUB_SUB_PORT = 8083
+    WSP_PORT = "8081"
+    GAME_REP_REQ_PORT = "8082"
+    GAME_PUB_SUB_PORT = "8083"
     RESISTANCE_LOG_PATH = "logs/resistance.log"
     USER_LOG_PATH = "logs/userLog.log"
     GAME_LOG_PATH = "logs/gameLog.log"
 )
 
+// createLogger creates a logger that will log to the given file
 func createLogger(filename string) (*log.Logger, *os.File, error) {
     logFile, err := os.OpenFile(filename, os.O_RDWR|os.O_APPEND, 0666)
     if err != nil {
@@ -31,6 +32,7 @@ func createLogger(filename string) (*log.Logger, *os.File, error) {
     return logger, logFile, nil
 }
 
+// LogMessage logs the given message into the given log file.
 func LogMessage(message string, logFileName string) {
     logger, logFile, err := createLogger(logFileName)
     defer logFile.Close()
@@ -40,6 +42,7 @@ func LogMessage(message string, logFileName string) {
     logger.Println(message)
 }
 
+// ConnectToDB connects to the local DB.
 func ConnectToDB() (*sql.DB, error) {
     db, err := sql.Open("mysql", "resistance:resistance@unix(/var/run/mysql/mysql.sock)/resistance")
 

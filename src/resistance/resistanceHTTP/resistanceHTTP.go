@@ -182,7 +182,7 @@ func main() {
     http.Handle("/socket.io.js", http.FileServer(http.Dir("src/github.com/justinfx/go-socket.io/bin/www/vendor/socket.io-client")))
     http.Handle("/game.js", http.FileServer(http.Dir("src/resistance/frontend")))
     
-    utils.LogMessage("Starting TheResistance", utils.RESISTANCE_LOG_PATH)
+    utils.LogMessage("Starting TheResistance HTTP Server...", utils.RESISTANCE_LOG_PATH)
     
     http.ListenAndServe(":8080", nil)
 }
