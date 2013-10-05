@@ -29,12 +29,12 @@ type User struct {
 var UNKNOWN_USER = &User{Username:"", UserId:-1}
 
 // isValidUser determines whether the user object is valid.
-func (user *User) isValidUser() bool {
+func (user *User) IsValidUser() bool {
     return user.UserId > 0 && user.Username != ""
 }
 
 // lookupUserById looks up the user in the DB based on the given id.
-func lookupUserById(id int) *User {
+func LookupUserById(id int) *User {
     db, err := utils.ConnectToDB()
     if err != nil {
         return UNKNOWN_USER
@@ -193,7 +193,7 @@ func ValidateUserCookie(requestCookies []*http.Cookie) (*User, bool) {
     
     cookie := requestCookies[0]
     user := lookupUserByCookie(cookie)
-    if user.isValidUser() {
+    if user.IsValidUser() {
         return user, true
     }
 

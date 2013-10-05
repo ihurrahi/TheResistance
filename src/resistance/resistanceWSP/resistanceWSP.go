@@ -3,6 +3,7 @@ package main
 import (
     "net/http"
     "log"
+    "strconv"
     "encoding/json"
     "github.com/justinfx/go-socket.io/socketio"
     zmq "github.com/alecthomas/gozmq"
@@ -11,26 +12,44 @@ import (
 
 type AcceptUser struct {
     AcceptUser bool
+    GameId int
+    UserId int
 }
 
-var allConnections map[*socketio.Conn]bool = make(map[*socketio.Conn]bool)
+var allConnections map[*socketio.Conn]int = make(map[*socketio.Conn]int)
 
 // subscribeConnection is meant to run in the background, subscribe to the
 // given gameId, and forward messages to the frontend.
 func subscribeConnection(socket *socketio.Conn, gameId int) {
-    // TODO: implement subscribe
+    context, _ := zmq.NewContext()
+    subSocket, _ := context.NewSocket(zmq.SUB)
+    defer context.Close()
+    defer subSocket.Close()
+    
+    subSocket.Connect("tcp://localhost:" + utils.GAME_PUB_SUB_PORT)
+    subSocket.SetSockOptString(zmq.SUBSCRIBE, strconv.Itoa(gameId))
+    utils.LogMessage("SUBCRIBER connected to port " + utils.GAME_REP_REQ_PORT + " with filter " + strconv.Itoa(gameId), utils.RESISTANCE_LOG_PATH)
+    
+    for allConnections[socket] != 0 {
+        game, _ := subSocket.Recv(0)
+        rest, _ := subSocket.Recv(0)
+        utils.LogMessage("got message on sub socket for game " + string(game) + ":" + string(rest), utils.RESISTANCE_LOG_PATH)
+        socket.Send(rest)
+    }
+    
+    utils.LogMessage("Lost SUBSCRIBER connection with filter " + strconv.Itoa(gameId), utils.RESISTANCE_LOG_PATH)
 }
 
 // isAcceptUser checks if the reply from the ZMQ socket indicated
 // that the user was ok, so the proxy can start a listener on the SUBSCRIBE
-// socket for that user.
-func isAcceptUser(zmqReply []byte) (bool, int) {
+// socket for that user. Returns (acceptUser, gameId, userId)
+func isAcceptUser(zmqReply []byte) (bool, int, int) {
     var acceptUser AcceptUser
     err := json.Unmarshal(zmqReply, &acceptUser)
     if err != nil {
-        return false, 0
+        return false, 0, 0
     }
-    return acceptUser.AcceptUser, 0
+    return acceptUser.AcceptUser, acceptUser.GameId, acceptUser.UserId
 }
 
 // handleMessage handles a message from the frontend. Basically forwards it
@@ -46,9 +65,10 @@ func handleMessage(msg socketio.Message, socket *socketio.Conn, zmqSocket *zmq.S
     utils.LogMessage("Reply received", utils.RESISTANCE_LOG_PATH)
     utils.LogMessage(string(reply), utils.RESISTANCE_LOG_PATH)
     
-    accept, gameId := isAcceptUser(reply)
+    accept, gameId, userId := isAcceptUser(reply)
     if (accept) {
-        utils.LogMessage("User accepted!", utils.RESISTANCE_LOG_PATH)
+        utils.LogMessage("User accepted: " + strconv.Itoa(userId), utils.RESISTANCE_LOG_PATH)
+        allConnections[socket] = userId
         go subscribeConnection(socket, gameId) 
     }
     
@@ -72,11 +92,12 @@ func main() {
     sio := socketio.NewSocketIO(&config)
 
     sio.OnConnect(func(c *socketio.Conn) {
-        allConnections[c] = true
     })
 
     sio.OnDisconnect(func(c *socketio.Conn) {
         delete(allConnections, c)
+        // TODO: make sure go routine will stop on disconnect
+        // TODO: send message to backend on disconnect
     })
 
     sio.OnMessage(func(c *socketio.Conn, msg socketio.Message) {
