@@ -29,10 +29,12 @@ function handleAnyErrors(parsedMessage) {
 
 function handlePlayers(parsedMessage) {
   if ("players" in parsedMessage) {
+    var playersTable = document.getElementById("players");
+    playersTable.innerHTML = ""
     for (var i = 0; i < parsedMessage.players.length; i++) {
-        var row = document.getElementById("players").insertRow(-1);
-        var cell = row.insertCell(0);
-        cell.innerHTML = parsedMessage.players[i];
+      var row = playersTable.insertRow(-1);
+      var cell = row.insertCell(0);
+      cell.innerHTML = parsedMessage.players[i];
     }
   }
 }
