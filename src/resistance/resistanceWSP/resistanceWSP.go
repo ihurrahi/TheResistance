@@ -20,10 +20,8 @@ var allConnections map[*socketio.Conn]int = make(map[*socketio.Conn]int)
 
 // subscribeConnection is meant to run in the background, subscribe to the
 // given gameId, and forward messages to the frontend.
-func subscribeConnection(socket *socketio.Conn, gameId int) {
-    context, _ := zmq.NewContext()
+func subscribeConnection(context *zmq.Context, socket *socketio.Conn, gameId int) {
     subSocket, _ := context.NewSocket(zmq.SUB)
-    defer context.Close()
     defer subSocket.Close()
     
     subSocket.Connect("tcp://localhost:" + utils.GAME_PUB_SUB_PORT)
@@ -56,7 +54,13 @@ func isAcceptUser(zmqReply []byte) (bool, int, int) {
 // through ZMQ to the game backend, waits for a reply, then forwards the
 // reply to the frontend. If this was a player connect message, and the
 // user is accepted, we should start a listener to the SUBSCRIBE socket.  
-func handleMessage(msg socketio.Message, socket *socketio.Conn, zmqSocket *zmq.Socket) {
+func handleMessage(msg socketio.Message, socket *socketio.Conn, context *zmq.Context) {
+    zmqSocket, _ := context.NewSocket(zmq.REQ)
+    defer zmqSocket.Close()
+    
+    zmqSocket.Connect("tcp://localhost:" + utils.GAME_REP_REQ_PORT)
+    utils.LogMessage("WSP connected to port " + utils.GAME_REP_REQ_PORT, utils.RESISTANCE_LOG_PATH)
+    
     zmqSocket.Send([]byte(msg.Data()), 0)
     utils.LogMessage("Sending to game backend", utils.RESISTANCE_LOG_PATH)
     utils.LogMessage(msg.Data(), utils.RESISTANCE_LOG_PATH)
@@ -69,7 +73,7 @@ func handleMessage(msg socketio.Message, socket *socketio.Conn, zmqSocket *zmq.S
     if (accept) {
         utils.LogMessage("User accepted: " + strconv.Itoa(userId), utils.RESISTANCE_LOG_PATH)
         allConnections[socket] = userId
-        go subscribeConnection(socket, gameId) 
+        go subscribeConnection(context, socket, gameId) 
     }
     
     socket.Send(reply)
@@ -79,12 +83,7 @@ func handleMessage(msg socketio.Message, socket *socketio.Conn, zmqSocket *zmq.S
 func main() {
     // Setup ZMQ
     context, _ := zmq.NewContext()
-    zmqSocket, _ := context.NewSocket(zmq.REQ)
     defer context.Close()
-    defer zmqSocket.Close()
-    
-    zmqSocket.Connect("tcp://localhost:" + utils.GAME_REP_REQ_PORT)
-    utils.LogMessage("WSP connected to port " + utils.GAME_REP_REQ_PORT, utils.RESISTANCE_LOG_PATH)
     
     // Setup Socket.IO
     config := socketio.DefaultConfig
@@ -102,7 +101,7 @@ func main() {
 
     sio.OnMessage(func(c *socketio.Conn, msg socketio.Message) {
         utils.LogMessage(c.String() + msg.Data(), utils.RESISTANCE_LOG_PATH)
-        go handleMessage(msg, c, zmqSocket)
+        go handleMessage(msg, c, context)
     })
 
     // Start server

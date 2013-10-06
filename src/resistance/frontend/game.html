@@ -2,10 +2,6 @@
 <head>
 <script src="socket.io.js"></script>
 <script src="game.js"></script>
-<script type="text/javascript">
-socket.connect();
-playerConnect({{.GameId}});
-</script>
 </head>
 <title>
 Game
@@ -22,7 +18,7 @@ Current players:
 </div>
 <br>
 <div id="action">
-<input type="button" onClick=doAction({{.GameId}}) value = "start" disabled/>
+<input id="startButton" type="button" onClick=startGame() value="start" disabled/>
 </div>
 </body>
 </html>
