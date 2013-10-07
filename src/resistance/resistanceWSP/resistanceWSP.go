@@ -87,7 +87,6 @@ func main() {
     
     // Setup Socket.IO
     config := socketio.DefaultConfig
-    config.Origins = []string{"*:8080"}
     sio := socketio.NewSocketIO(&config)
 
     sio.OnConnect(func(c *socketio.Conn) {

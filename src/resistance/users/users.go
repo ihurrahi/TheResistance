@@ -145,12 +145,14 @@ func validateUserCredentials(user string, pass string) (int, bool) {
 }
 
 // UserSignUp signs up the user given in the request and performs basic
-// validation on the fields.
+// validation on the fields. Returns if there is an error and the
+// corresponding error message
 // TODO: method should just use form values instead of being passed entire http request.
 func UserSignUp(request *http.Request) (bool, string) {
     username := request.FormValue(USERNAME_KEY)
     user := lookupUserByUsername(username)
-    if user != nil {
+    if user.IsValidUser() {
+        // If this is a valid user (not the UNKNOWN user), then the user already exists
         return true, "Username " + username + " already exists!"
     }
     
