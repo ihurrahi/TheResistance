@@ -37,6 +37,7 @@ const (
 func handlePlayerConnect(message map[string]interface{}, connectingPlayer *users.User, pubSocket *zmq.Socket) map[string]interface{} {
     var returnMessage = make(map[string]interface{})
     utils.LogMessage(connectingPlayer.Username + " has sent a message!", utils.RESISTANCE_LOG_PATH)
+    // TODO: handle case where game_id_key doesnt exist
     gameId, err := strconv.Atoi(message[GAME_ID_KEY].(string))
     if err == nil {
         // Add the user to the players for this game
