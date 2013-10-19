@@ -19,17 +19,21 @@ const (
     ACCEPT_USER_KEY = "acceptUser"
     USER_ID_KEY = "userId"
     ROLE_KEY = "role"
+    IS_LEADER_KEY = "isLeader"
     
     // messages received from the frontend
     PLAYER_CONNECT_MESSAGE = "playerConnect"
     PLAYER_DISCONNECT_MESSAGE = "playerDisconnect"
     START_GAME_MESSAGE = "startGame"
     QUERY_ROLE_MESSAGE = "queryRole"
+    QUERY_LEADER_MESSAGE = "queryLeader"
     
     // messages sent to the frontend
     PLAYERS_MESSAGE = "players"
     GAME_STARTED_MESSAGE = "gameStarted"
     QUERY_ROLE_RESULT_MESSAGE = "queryRoleResult"
+    QUERY_LEADER_RESULT_MESSAGE = "queryLeaderResult"
+    MISSION_PREPARATION_MESSAGE = "missionPreparation"
 )
 
 // handlePlayerConnect handles the message that is sent when a player
@@ -95,7 +99,13 @@ func handleStartGame(message map[string]interface{}, connectingPlayer *users.Use
         gameStartedMessage[MESSAGE_KEY] = GAME_STARTED_MESSAGE
         sendMessageToSubscribers(gameId, gameStartedMessage, pubSocket)
         
-        // TODO: implement the first mission
+        err = game.StartNextMission(gameId)
+        // TODO: error check here
+        
+        // Sends the message that a mission is going to start
+        var missionPreparationMessage = make(map[string]interface{})
+        missionPreparationMessage[MESSAGE_KEY] = MISSION_PREPARATION_MESSAGE
+        sendMessageToSubscribers(gameId, missionPreparationMessage, pubSocket)
     }
     // TODO: error check if gameId is not an integer or not given
     
@@ -114,6 +124,33 @@ func handleQueryRole(message map[string]interface{}, player *users.User) map[str
             returnMessage[ROLE_KEY] = role
         }
         // TODO: error checking
+    }
+    // TODO: error checking
+    
+    return returnMessage
+}
+
+// handleQueryLeader handles the request from the frontend for who
+// the leader of the current mission is.
+func handleQueryLeader(message map[string]interface{}, player *users.User) map[string]interface{} {
+    var returnMessage = make(map[string]interface{})
+    gameId, err := strconv.Atoi(message[GAME_ID_KEY].(string))
+    if err == nil {
+        isLeader, err := game.IsUserMissionLeader(player.UserId, gameId)
+        if err == nil {
+            returnMessage[MESSAGE_KEY] = QUERY_LEADER_RESULT_MESSAGE
+            returnMessage[IS_LEADER_KEY] = isLeader
+            
+            if isLeader {
+                allPlayers, err := game.GetPlayers(gameId)
+                if err == nil {
+                    returnMessage[PLAYERS_KEY] = allPlayers
+                }
+                // TODO: error checking
+            }
+        }
+        // TODO: error checking
+        
     }
     // TODO: error checking
     
@@ -193,6 +230,8 @@ func main() {
                 returnMessage = handleStartGame(parsedMessage, user, pubSocket)
             case parsedMessage[MESSAGE_KEY] == QUERY_ROLE_MESSAGE:
                 returnMessage = handleQueryRole(parsedMessage, user)
+            case parsedMessage[MESSAGE_KEY] == QUERY_LEADER_MESSAGE:
+                returnMessage = handleQueryLeader(parsedMessage, user)
         }
         
         marshalledMessage, err := json.Marshal(returnMessage)
