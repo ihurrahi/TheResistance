@@ -21,11 +21,14 @@ const (
     
     CREATE_GAME_QUERY = "insert into games (`title`, `host_id`, `status`) values (?, ?, \"" + GAME_STATUS_LOBBY + "\")"
     ADD_PLAYER_QUERY = "insert into players (`game_id`, `user_id`) values (?, ?)"
-    GET_PLAYERS_QUERY = "select user_id from players where game_id = ?"
+    GET_PLAYERS_QUERY = "select user_id from players where game_id = ? order by join_date"
     SET_GAME_STATUS_QUERY = "update games set status = ? where game_id = ?"
     NUM_PLAYERS_QUERY = "select user_id from players where game_id = ?"
     SET_PLAYER_ROLE_QUERY = "update players set role = ? where user_id = ? and game_id = ?"
     PLAYER_ROLE_QUERY = "select role from players where user_id = ? and game_id = ?"
+    MISSION_LEADER_QUERY = "select leader_id from missions where game_id = ? order by mission_num desc limit 1"
+    NEXT_MISSION_NUM_QUERY = "select max(mission_num) + 1 from missions where game_id = ?"
+    CREATE_MISSION_QUERY = "insert into missions (`game_id`, `mission_num`, `leader_id`) values (?, ?, ?)"
 )
 
 // numPlayersToNumSpies gives you how many spies there should be in a game
@@ -223,4 +226,89 @@ func GetPlayerRole(userId int, gameId int) (string, error) {
     }
     
     return "", errors.New("Something went wrong with getting the player roles")
+}
+
+// IsUserMissionLeader returns whether the given user is
+// the mission leader of the current mission. Assumes that
+// the game is in progress.
+func IsUserMissionLeader(userId int, gameId int) (bool, error) {
+    db, err := utils.ConnectToDB()
+    if err != nil {
+        return false, err
+    }
+
+    result, err := db.Query(MISSION_LEADER_QUERY, gameId)
+    if err != nil {
+        return false, err
+    }
+    
+    // We only expect one result
+    if result.Next() {
+        var leaderId int
+        if err := result.Scan(&leaderId); err == nil {
+            return leaderId == userId, nil
+        }
+    }
+    
+    return false, errors.New("Something went wrong with retrieving the leader")
+}
+
+// StartNextMission starts the next mission for the given game.
+func StartNextMission(gameId int) error {
+
+    var nextMissionNum int
+    var currentLeaderId int
+    var newLeaderId int
+        
+    db, err := utils.ConnectToDB()
+    if err != nil {
+        return err
+    }
+
+    // Do query for the next mission number
+    result, err := db.Query(NEXT_MISSION_NUM_QUERY, gameId)
+    if err != nil {
+        return err
+    }
+    // We only expect one result
+    if result.Next(); err := result.Scan(&nextMissionNum); err != nil {
+        return err
+    }
+    
+    // Do query for the new leader
+    // First get the current leader
+    result, err := db.Query(MISSION_LEADER_QUERY, gameId)
+    if err != nil {
+        return err
+    }
+    if result.Next(); err := result.Scan(&currentLeaderId); err != nil {
+        return err
+    }
+    // Then get the current players
+    results, err := db.Query(GET_PLAYERS_QUERY, gameId)
+    if err != nil {
+        return err
+    }
+    userIds = make([]int)
+    for results.Next() {
+        var userId int
+        if err := results.Scan(&userId); err == nil {
+            userIds = append(userIds, userId)
+        }
+    }
+    // And select the next leader from the current players
+    for i, _ : range userIds {
+        if userIds[i] == currentLeaderId {
+            newLeaderId = userIds[(i + 1) % len(userIds)]
+            break
+        }
+    }
+    
+    // Do query for creating the mission
+    _, err := db.Exec(CREATE_MISSION_QUERY, gameId, nextMissionNum, newLeaderId)
+    if err != nil {
+        return err
+    }
+    
+    return nil
 }

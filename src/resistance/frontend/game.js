@@ -23,6 +23,12 @@ function handleMessage(message) {
     case "queryRoleResult":
       handleQueryRoleResult(object);
       break;
+    case "missionPreparation":
+      handleMissionPreparation(object);
+      break;
+    case "queryLeaderResult":
+      handleQueryLeaderResult(object);
+      break;
     default:
       // used for debugging
       //alert("Unknown message: " + object.message);
@@ -72,6 +78,24 @@ function handleGameStart(parsedMessage) {
 function handleQueryRoleResult(parsedMessage) {
   document.getElementById("information").innerHTML += "<br>Your role:<br>"
   document.getElementById("information").innerHTML += parsedMessage.role
+}
+
+function handleMissionPreparation(parsedMessage) {
+  // A mission needs to be sent, but who will be sent?
+  // Send a message to see if I'm the leader.
+  sendResistanceMessage("queryLeader");
+}
+
+function handleQueryLeaderResult(parsedMessage) {
+  if (parsedMessage.isLeader) {
+    message = "You are the leader."
+    for (var player in parsedMessage.players) {
+      message += player
+    }
+  } else {
+    message = "You are not the leader."
+  }
+  document.getElementById("information").innerHTML += message
 }
 
 function sendResistanceMessage(message, arguments) {
