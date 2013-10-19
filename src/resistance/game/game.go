@@ -271,33 +271,46 @@ func StartNextMission(gameId int) error {
         return err
     }
     // We only expect one result
-    if result.Next(); err := result.Scan(&nextMissionNum); err != nil {
-        return err
+    if result.Next() {
+        if err := result.Scan(&nextMissionNum); err != nil {
+            return err
+        }
+    } else {
+        nextMissionNum = 0
     }
     
     // Do query for the new leader
     // First get the current leader
-    result, err := db.Query(MISSION_LEADER_QUERY, gameId)
+    result, err = db.Query(MISSION_LEADER_QUERY, gameId)
     if err != nil {
         return err
     }
-    if result.Next(); err := result.Scan(&currentLeaderId); err != nil {
-        return err
+    if result.Next() {
+        if err := result.Scan(&currentLeaderId); err != nil {
+            return err
+        }
+    } else {
+        currentLeaderId = users.UNKNOWN_USER.UserId
     }
     // Then get the current players
     results, err := db.Query(GET_PLAYERS_QUERY, gameId)
     if err != nil {
         return err
     }
-    userIds = make([]int)
+    var userIds = make([]int, 0)
     for results.Next() {
         var userId int
         if err := results.Scan(&userId); err == nil {
             userIds = append(userIds, userId)
         }
     }
+    // If there is no current leader, this must be the first
+    // mission, so the new leader is just the first player.
+    if currentLeaderId == users.UNKNOWN_USER.UserId {
+        newLeaderId = userIds[0]
+    }
     // And select the next leader from the current players
-    for i, _ : range userIds {
+    for i, _ := range userIds {
         if userIds[i] == currentLeaderId {
             newLeaderId = userIds[(i + 1) % len(userIds)]
             break
@@ -305,7 +318,7 @@ func StartNextMission(gameId int) error {
     }
     
     // Do query for creating the mission
-    _, err := db.Exec(CREATE_MISSION_QUERY, gameId, nextMissionNum, newLeaderId)
+    _, err = db.Exec(CREATE_MISSION_QUERY, gameId, nextMissionNum, newLeaderId)
     if err != nil {
         return err
     }
