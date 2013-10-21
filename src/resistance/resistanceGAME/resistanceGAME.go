@@ -100,6 +100,9 @@ func handleStartGame(message map[string]interface{}, connectingPlayer *users.Use
         sendMessageToSubscribers(gameId, gameStartedMessage, pubSocket)
         
         err = game.StartNextMission(gameId)
+        if err != nil {
+            utils.LogMessage("error starting mission" + err.Error(), utils.RESISTANCE_LOG_PATH)
+        }
         // TODO: error check here
         
         // Sends the message that a mission is going to start
@@ -138,6 +141,7 @@ func handleQueryLeader(message map[string]interface{}, player *users.User) map[s
     if err == nil {
         isLeader, err := game.IsUserMissionLeader(player.UserId, gameId)
         if err == nil {
+            utils.LogMessage("err == nil", utils.RESISTANCE_LOG_PATH)
             returnMessage[MESSAGE_KEY] = QUERY_LEADER_RESULT_MESSAGE
             returnMessage[IS_LEADER_KEY] = isLeader
             
@@ -148,6 +152,8 @@ func handleQueryLeader(message map[string]interface{}, player *users.User) map[s
                 }
                 // TODO: error checking
             }
+        } else {
+            utils.LogMessage("err != nil, " + err.Error(), utils.RESISTANCE_LOG_PATH)
         }
         // TODO: error checking
         
