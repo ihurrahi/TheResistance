@@ -81,21 +81,22 @@ function handleQueryRoleResult(parsedMessage) {
 }
 
 function handleMissionPreparation(parsedMessage) {
-  // A mission needs to be sent, but who will be sent?
+  // A mission needs to be sent, but which team?
   // Send a message to see if I'm the leader.
   sendResistanceMessage("queryLeader");
 }
 
 function handleQueryLeaderResult(parsedMessage) {
   if (parsedMessage.isLeader) {
-    message = "You are the leader."
-    for (var player in parsedMessage.players) {
-      message += player
+    message = "You are the leader.";
+    for (var index in parsedMessage.players) {
+      message += parsedMessage.players[index]["Username"];
+      message += ",";
     }
   } else {
-    message = "You are not the leader."
+    message = "You are not the leader.";
   }
-  document.getElementById("information").innerHTML += message
+  document.getElementById("information").innerHTML += message;
 }
 
 function sendResistanceMessage(message, arguments) {

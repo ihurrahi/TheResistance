@@ -138,15 +138,19 @@ func historyHandler(writer http.ResponseWriter, request *http.Request) {
 func gameHandler(writer http.ResponseWriter, request *http.Request) {
     utils.LogMessage(request.URL.Path + " was requested", utils.RESISTANCE_LOG_PATH)
     
-    _ = requiresLogin(writer, request)
+    user := requiresLogin(writer, request)
     
     err := request.ParseForm()
     if err != nil {
         utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
     } else if len(request.Form) > 0 {
-        gameInfo := make(map[string]interface{})
-        gameInfo["GameId"] = request.FormValue("gameId")
-        renderTemplate(writer, GAME_TEMPLATE, gameInfo)
+        err = game.ValidateGameRequest(request.FormValue("gameId"), user)
+        if err == nil {
+            renderTemplate(writer, GAME_TEMPLATE, make(map[string]string))
+        } else {
+            // TODO: how do i redirect to home and pass in an error message?
+            writer.Write([]byte(err.Error()))
+        }
     } else {
         http.Redirect(writer, request, "/home.html", 302)
     }

@@ -22,12 +22,13 @@ const (
     CREATE_GAME_QUERY = "insert into games (`title`, `host_id`, `status`) values (?, ?, \"" + GAME_STATUS_LOBBY + "\")"
     ADD_PLAYER_QUERY = "insert into players (`game_id`, `user_id`) values (?, ?)"
     GET_PLAYERS_QUERY = "select user_id from players where game_id = ? order by join_date"
+    GET_GAME_STATUS_QUERY = "select status from games where game_id = ?"
     SET_GAME_STATUS_QUERY = "update games set status = ? where game_id = ?"
     NUM_PLAYERS_QUERY = "select user_id from players where game_id = ?"
     SET_PLAYER_ROLE_QUERY = "update players set role = ? where user_id = ? and game_id = ?"
     PLAYER_ROLE_QUERY = "select role from players where user_id = ? and game_id = ?"
     MISSION_LEADER_QUERY = "select leader_id from missions where game_id = ? order by mission_num desc limit 1"
-    NEXT_MISSION_NUM_QUERY = "select max(mission_num) + 1 from missions where game_id = ?"
+    NEXT_MISSION_NUM_QUERY = "select ifnull(max(mission_num),0) + 1 from missions where game_id = ?"
     CREATE_MISSION_QUERY = "insert into missions (`game_id`, `mission_num`, `leader_id`) values (?, ?, ?)"
 )
 
@@ -56,6 +57,50 @@ func CreateGame(request *http.Request) (int64, error) {
     return id, nil
 }
 
+// ValidateGameRequest takes in a game id and validates that it is
+// ok for the given user to join the given game
+func ValidateGameRequest(gameIdString string, user *users.User) error {
+
+    // Error if no game id is not specified
+    if gameIdString == "" {
+        return errors.New("Game not specified.")
+    }
+    
+    // Error if game id can't be parsed
+    gameId, err := strconv.Atoi(gameIdString)
+    if err != nil {
+        return errors.New("Game Id is not valid.")
+    }
+    
+    db, err := utils.ConnectToDB()
+    if err != nil {
+        return err
+    }
+    results, err := db.Query(GET_GAME_STATUS_QUERY, gameId)
+    if err != nil {
+        return err
+    }
+    // Error if no rows returned
+    if results.Next() {
+        var gameStatus string
+        if err := results.Scan(&gameStatus); err == nil {
+            // Error if game is already done.
+            if gameStatus == GAME_STATUS_DONE {
+                return errors.New("Cannot join a game that is already done.")
+            }
+            if gameStatus == GAME_STATUS_IN_PROGRESS {
+                // TODO: error check for joining games in progress
+            }
+        } else {
+            return err
+        }
+    } else {
+        return errors.New("Game does not exist.")
+    }
+    
+    return nil
+}
+
 // AddPlayer adds the given user to the given game by storing the
 // relevant information in the players table. This can only be done
 // while the game is still in the LOBBY stage.
@@ -65,6 +110,7 @@ func AddPlayer(gameId int, userId int) error {
         return err
     }
 
+    // TODO: add validation that the game is still in LOBBY status
     _, err = db.Exec(ADD_PLAYER_QUERY, gameId, userId)
     if err != nil {
         return err
@@ -254,6 +300,8 @@ func IsUserMissionLeader(userId int, gameId int) (bool, error) {
 }
 
 // StartNextMission starts the next mission for the given game.
+// Assumes given game exists and has started, and has more than
+// one player.
 func StartNextMission(gameId int) error {
 
     var nextMissionNum int
@@ -276,7 +324,8 @@ func StartNextMission(gameId int) error {
             return err
         }
     } else {
-        nextMissionNum = 0
+        // No results means this is the first mission.
+        nextMissionNum = 1
     }
     
     // Do query for the new leader
