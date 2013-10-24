@@ -1,0 +1,52 @@
+#information {
+  border: 1px solid;
+  border-radius:10px;
+  border-color:#ff0000;
+  position: relative;
+  width:400px;
+  height:350px;
+}
+
+#missionInfo {
+  border: 1px solid;
+  border-radius:10px;
+  margin: 2%;
+  padding: 2%;
+  position: absolute;
+  float: left;
+  top: 0;
+  left: 0;
+  width:42%;
+  height:71%;
+}
+
+#playerInfo {
+  border: 1px solid;
+  border-radius:10px;
+  margin: 2%;
+  padding: 2%;
+  position: absolute;
+  float: left;
+  top: 0;
+  right: 0;
+  width:42%;
+  height:91%;
+}
+
+#roleInfo {
+  border: 1px solid;
+  border-radius:10px;
+  margin: 2%;
+  padding: 2%;
+  position: absolute;
+  float:left;
+  bottom: 0;
+  left: 0;
+  width:42%;
+  height:11%;
+}
+
+#actions {
+  position: relative;
+  clear: both;
+}

@@ -1,24 +1,57 @@
 <html>
+
 <head>
 <script src="socket.io.js"></script>
 <script src="game.js"></script>
+<link rel="stylesheet" href="game.css">
 </head>
+
 <title>
 Game
 </title>
+
 <body>
-<div id="alerts">
-</div>
-<div id="information">
-Current players:
-<table id="players">
-<td>
-</td>
-</table>
-</div>
-<br>
-<div id="action">
-<input id="startButton" type="button" onClick=startGame() value="start" disabled/>
-</div>
+
+  <div id="gameTitle">
+  gameTitle
+  </div>
+
+  <div id="alerts">
+  </div>
+
+  <div id="information">
+
+    <div id="missionInfo">
+    missionInfo
+    <br>
+    1
+    <br>
+    2
+    <br>
+    3
+    <br>
+    4
+    <br>
+    5
+    </div>
+    
+    <div id="playerInfo">
+    Current players:
+      <table id="players">
+        <td>
+        </td>
+      </table>
+    </div>
+
+    <div id="roleInfo">
+    roleInfo
+    </div>
+
+  </div>
+
+  <div id="action">
+    <input id="startButton" type="button" onClick=startGame() value="start" disabled/>
+  </div>
+
 </body>
 </html>
