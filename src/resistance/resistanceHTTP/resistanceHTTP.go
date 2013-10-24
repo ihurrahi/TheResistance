@@ -185,6 +185,7 @@ func main() {
     http.HandleFunc("/game.html", gameHandler)
     http.Handle("/socket.io.js", http.FileServer(http.Dir("src/github.com/justinfx/go-socket.io/bin/www/vendor/socket.io-client")))
     http.Handle("/game.js", http.FileServer(http.Dir("src/resistance/frontend")))
+    http.Handle("/game.css", http.FileServer(http.Dir("src/resistance/frontend")))
     
     utils.LogMessage("Starting TheResistance HTTP Server...", utils.RESISTANCE_LOG_PATH)
     
