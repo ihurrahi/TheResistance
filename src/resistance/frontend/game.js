@@ -55,7 +55,9 @@ function handlePlayers(parsedMessage) {
     }
     if (parsedMessage.players.length >= 5) {
       var button = document.getElementById("startButton");
-      button.disabled = false;
+      if (button != null) {
+        button.disabled = false;
+      }
     }
   }
 }
@@ -68,16 +70,24 @@ function handleGameStart(parsedMessage) {
       actionDiv.removeChild(startButton);
   }
   
-  // hack. remove
-  document.getElementById("information").innerHTML += "The game has started!"
-  
-  // figure out what my role is
-  sendResistanceMessage("queryRole");
+  // Show button to get role
+  var button = document.getElementById("showRoleButton");
+  if (button == null) {
+    button = document.createElement("input");
+    button.type = "button";
+    button.value = "Show Role";
+    button.id = "showRoleButton";
+    button.onclick = function () {
+      sendResistanceMessage("queryRole");
+    }
+    document.getElementById("roleInfo").appendChild(button);
+  }
 }
 
 function handleQueryRoleResult(parsedMessage) {
-  document.getElementById("information").innerHTML += "<br>Your role:<br>"
-  document.getElementById("information").innerHTML += parsedMessage.role
+  document.getElementById("showRoleButton").style.display = "none";
+  var role = document.createTextNode(parsedMessage.role);
+  document.getElementById("roleInfo").appendChild(role);
 }
 
 function handleMissionPreparation(parsedMessage) {
@@ -87,16 +97,42 @@ function handleMissionPreparation(parsedMessage) {
 }
 
 function handleQueryLeaderResult(parsedMessage) {
+  var actionDiv = document.getElementById("action");
+  var br = document.createElement("br");
   if (parsedMessage.isLeader) {
-    message = "You are the leader.";
+    message = "You are the leader of this mission";
+    actionDiv.appendChild(document.createTextNode(message));
+    actionDiv.appendChild(document.createElement("br"));
+    message = "Please select your team.";
+    actionDiv.appendChild(document.createTextNode(message));
+    actionDiv.appendChild(document.createElement("br"));
+    
+    var form = document.createElement("form");
     for (var index in parsedMessage.players) {
-      message += parsedMessage.players[index]["Username"];
-      message += ",";
+      var player = parsedMessage.players[index];
+      
+      var option = document.createElement("input");
+      option.type = "checkbox";
+      option.id = "teamMember" + player["UserId"];
+      option.value = player["UserId"];
+      
+      var label = document.createElement("label");
+      label.innerHTML = player["Username"];
+      label.htmlFor = "teamMember" + player["UserId"];
+      
+      form.appendChild(option);
+      form.appendChild(label);
+      form.appendChild(document.createElement("br"));
     }
+    var submitButton = document.createElement("input");
+    submitButton.type = "submit";
+    submitButton.value = "Send";
+    form.appendChild(submitButton);
+    
+    actionDiv.appendChild(form);
   } else {
-    message = "You are not the leader.";
+    actionDiv.appendChild(document.createTextNode("You are not the leader."));
   }
-  document.getElementById("information").innerHTML += message;
 }
 
 function sendResistanceMessage(message, arguments) {
