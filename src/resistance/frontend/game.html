@@ -1,9 +1,9 @@
 <html>
 
 <head>
+<link rel="stylesheet" type="text/css" href="game.css">
 <script src="socket.io.js"></script>
 <script src="game.js"></script>
-<link rel="stylesheet" href="game.css">
 </head>
 
 <title>
@@ -12,17 +12,17 @@ Game
 
 <body>
 
-  <div id="gameTitle">
-  gameTitle
-  </div>
+  <div id="gameInformation">
+    <div id="gameTitle" class="borderDiv">
+      Game: 
+    </div>
+  
+    <div id="roleInfo" class="borderDiv">
+      Role: 
+    </div>
 
-  <div id="alerts">
-  </div>
-
-  <div id="information">
-
-    <div id="missionInfo">
-    missionInfo
+    <div id="missionInfo" class="borderDiv">
+    Missions:
     <br>
     1
     <br>
@@ -35,7 +35,7 @@ Game
     5
     </div>
     
-    <div id="playerInfo">
+    <div id="playerInfo" class="borderDiv">
     Current players:
       <table id="players">
         <td>
@@ -43,13 +43,12 @@ Game
       </table>
     </div>
 
-    <div id="roleInfo">
-    roleInfo
-    </div>
-
   </div>
 
-  <div id="action">
+  <div id="alerts">
+  </div>
+
+  <div id="action" class="borderDiv">
     <input id="startButton" type="button" onClick=startGame() value="start" disabled/>
   </div>
 

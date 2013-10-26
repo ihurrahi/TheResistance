@@ -1,52 +1,55 @@
-#information {
-  border: 1px solid;
-  border-radius:10px;
-  border-color:#ff0000;
+#gameInformation {
   position: relative;
-  width:400px;
-  height:350px;
+  width: 539px;
+  height: 279px;
 }
 
-#missionInfo {
+.borderDiv {
   border: 1px solid;
   border-radius:10px;
-  margin: 2%;
-  padding: 2%;
+  margin: 5px;
+  padding: 5px;
+}
+
+#gameTitle {
   position: absolute;
-  float: left;
+  float:left;
   top: 0;
   left: 0;
-  width:42%;
-  height:71%;
-}
-
-#playerInfo {
-  border: 1px solid;
-  border-radius:10px;
-  margin: 2%;
-  padding: 2%;
-  position: absolute;
-  float: left;
-  top: 0;
-  right: 0;
-  width:42%;
-  height:91%;
+  width:360px;
+  height:20px;
 }
 
 #roleInfo {
-  border: 1px solid;
-  border-radius:10px;
-  margin: 2%;
-  padding: 2%;
   position: absolute;
   float:left;
-  bottom: 0;
-  left: 0;
-  width:42%;
-  height:11%;
+  top: 0;
+  right: 0;
+  width:140px;
+  height:20px;
 }
 
-#actions {
+#missionInfo {
+  position: absolute;
+  float: left;
+  bottom: 0;
+  left: 0;
+  width:360px;
+  height:220px;
+}
+
+#playerInfo {
+  position: absolute;
+  float: left;
+  bottom: 0;
+  right: 0;
+  width:140px;
+  height:220px;
+}
+
+#action {
   position: relative;
   clear: both;
+  width:518px;
+  height: 200px;
 }
