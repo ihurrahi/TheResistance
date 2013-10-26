@@ -144,9 +144,16 @@ func gameHandler(writer http.ResponseWriter, request *http.Request) {
     if err != nil {
         utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
     } else if len(request.Form) > 0 {
-        err = game.ValidateGameRequest(request.FormValue("gameId"), user)
+        gameId, err := game.ValidateGameRequest(request.FormValue("gameId"), user)
         if err == nil {
-            renderTemplate(writer, GAME_TEMPLATE, make(map[string]string))
+            gameInfo := make(map[string]string)
+            
+            gameName, err := game.GetGameName(gameId)
+            if err == nil {
+                gameInfo["GameTitle"] = gameName
+            }
+            
+            renderTemplate(writer, GAME_TEMPLATE, gameInfo)
         } else {
             // TODO: how do i redirect to home and pass in an error message?
             writer.Write([]byte(err.Error()))

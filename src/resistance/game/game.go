@@ -20,6 +20,7 @@ const (
     SPY_ROLE = "S"
     
     CREATE_GAME_QUERY = "insert into games (`title`, `host_id`, `status`) values (?, ?, \"" + GAME_STATUS_LOBBY + "\")"
+    GET_GAME_NAME_QUERY = "select title from games where game_id = ?"
     ADD_PLAYER_QUERY = "insert into players (`game_id`, `user_id`) values (?, ?)"
     GET_PLAYERS_QUERY = "select user_id from players where game_id = ? order by join_date"
     GET_GAME_STATUS_QUERY = "select status from games where game_id = ?"
@@ -59,26 +60,26 @@ func CreateGame(request *http.Request) (int64, error) {
 
 // ValidateGameRequest takes in a game id and validates that it is
 // ok for the given user to join the given game
-func ValidateGameRequest(gameIdString string, user *users.User) error {
+func ValidateGameRequest(gameIdString string, user *users.User) (int, error) {
 
     // Error if no game id is not specified
     if gameIdString == "" {
-        return errors.New("Game not specified.")
+        return -1, errors.New("Game not specified.")
     }
     
     // Error if game id can't be parsed
     gameId, err := strconv.Atoi(gameIdString)
     if err != nil {
-        return errors.New("Game Id is not valid.")
+        return -1, errors.New("Game Id is not valid.")
     }
     
     db, err := utils.ConnectToDB()
     if err != nil {
-        return err
+        return -1, err
     }
     results, err := db.Query(GET_GAME_STATUS_QUERY, gameId)
     if err != nil {
-        return err
+        return -1, err
     }
     // Error if no rows returned
     if results.Next() {
@@ -86,19 +87,19 @@ func ValidateGameRequest(gameIdString string, user *users.User) error {
         if err := results.Scan(&gameStatus); err == nil {
             // Error if game is already done.
             if gameStatus == GAME_STATUS_DONE {
-                return errors.New("Cannot join a game that is already done.")
+                return -1, errors.New("Cannot join a game that is already done.")
             }
             if gameStatus == GAME_STATUS_IN_PROGRESS {
                 // TODO: error check for joining games in progress
             }
         } else {
-            return err
+            return -1, err
         }
     } else {
-        return errors.New("Game does not exist.")
+        return -1, errors.New("Game does not exist.")
     }
     
-    return nil
+    return gameId, nil
 }
 
 // AddPlayer adds the given user to the given game by storing the
@@ -116,6 +117,30 @@ func AddPlayer(gameId int, userId int) error {
         return err
     }
     return nil
+}
+
+// GetGameName retrieves the game name from the database.
+// This should only be used for display purposes.
+func GetGameName(gameId int) (string, error) {
+    db, err := utils.ConnectToDB()
+    if err != nil {
+        return "", err
+    }
+
+    results, err := db.Query(GET_GAME_NAME_QUERY, gameId)
+    if err != nil {
+        return "", err
+    }
+    
+    if (results.Next()) {
+        var gameTitle string
+        if err := results.Scan(&gameTitle); err == nil {
+            return gameTitle, nil
+        } else {
+            return "", err
+        }
+    }
+    return "", nil
 }
 
 // DeletePlayer deletes the given user from the given game by
