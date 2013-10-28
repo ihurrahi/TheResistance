@@ -103,7 +103,7 @@ function handleQueryLeaderResult(parsedMessage) {
     message = "You are the leader of this mission";
     actionDiv.appendChild(document.createTextNode(message));
     actionDiv.appendChild(document.createElement("br"));
-    message = "Please select a team of " + parsedMessage["teamSize"];
+    message = "Please select a team of " + parsedMessage["teamSize"] + ".";
     actionDiv.appendChild(document.createTextNode(message));
     actionDiv.appendChild(document.createElement("br"));
     
@@ -136,8 +136,9 @@ function handleQueryLeaderResult(parsedMessage) {
         }
       }
       if (userIds.length != parsedMessage["teamSize"]) {
-        alert("Please select a team of " + parsedMessage["teamSize"]) + ".";
+        alert("Please select a team of " + parsedMessage["teamSize"] + ".");
       } else {
+        submitButton.disabled = true;
         sendResistanceMessage("startMission", {"team": userIds});
       }
       return true;
