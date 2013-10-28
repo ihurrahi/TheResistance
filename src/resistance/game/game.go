@@ -29,13 +29,31 @@ const (
     SET_PLAYER_ROLE_QUERY = "update players set role = ? where user_id = ? and game_id = ?"
     PLAYER_ROLE_QUERY = "select role from players where user_id = ? and game_id = ?"
     MISSION_LEADER_QUERY = "select leader_id from missions where game_id = ? order by mission_num desc limit 1"
-    NEXT_MISSION_NUM_QUERY = "select ifnull(max(mission_num),0) + 1 from missions where game_id = ?"
+    CURRENT_MISSION_NUM_QUERY = "select ifnull(max(mission_num),0) from missions where game_id = ?"
     CREATE_MISSION_QUERY = "insert into missions (`game_id`, `mission_num`, `leader_id`) values (?, ?, ?)"
+    CREATE_TEAM_MEMBER_QUERY = "insert into teams (`mission_id`, `user_id`) values (?, ?)"
+    CURRENT_MISSION_ID_QUERY = "select mission_id from missions where mission_num = (" + CURRENT_MISSION_NUM_QUERY + ") and game_id = ?"
 )
 
 // numPlayersToNumSpies gives you how many spies there should be in a game
 // for the given the number of players
-var numPlayersToNumSpies = map[int]int{5:2, 6:2, 7:3, 8:3, 9:3, 10:4}
+var numPlayersToNumSpies = map[int]int {
+    5:2,
+    6:2,
+    7:3,
+    8:3,
+    9:3,
+    10:4}
+
+// numPlayersOnTeam gives you how many players should be on a team
+// given the total number of players and the mission number
+var numPlayersOnTeam = map[int]map[int]int {
+    5:{1:2, 2:3, 3:2, 4:3, 5:3},
+    6:{1:2, 2:3, 3:4, 4:3, 5:4},
+    7:{1:2, 2:3, 3:3, 4:4, 5:4},
+    8:{1:3, 2:4, 3:4, 4:5, 5:5},
+    9:{1:3, 2:4, 3:4, 4:5, 5:5},
+    10:{1:3, 2:4, 3:4, 4:5, 5:5}}
 
 // CreateGame creates the game by storing the relevant information
 // in the games table in the DB.
@@ -339,23 +357,16 @@ func StartNextMission(gameId int) error {
     }
 
     // Do query for the next mission number
-    result, err := db.Query(NEXT_MISSION_NUM_QUERY, gameId)
+    missionNum, err := GetCurrentMissionNum(gameId)
     if err != nil {
         return err
-    }
-    // We only expect one result
-    if result.Next() {
-        if err := result.Scan(&nextMissionNum); err != nil {
-            return err
-        }
     } else {
-        // No results means this is the first mission.
-        nextMissionNum = 1
+        nextMissionNum = missionNum + 1
     }
     
     // Do query for the new leader
     // First get the current leader
-    result, err = db.Query(MISSION_LEADER_QUERY, gameId)
+    result, err := db.Query(MISSION_LEADER_QUERY, gameId)
     if err != nil {
         return err
     }
@@ -398,4 +409,78 @@ func StartNextMission(gameId int) error {
     }
     
     return nil
+}
+
+func GetCurrentMissionNum(gameId int) (int, error) {
+    missionNum := 0
+    
+    db, err := utils.ConnectToDB()
+    if err != nil {
+        return -1, err
+    }
+
+    result, err := db.Query(CURRENT_MISSION_NUM_QUERY, gameId)
+    if err != nil {
+        return -1, err
+    }
+    // We only expect one result
+    if result.Next() {
+        if err := result.Scan(&missionNum); err != nil {
+            return -1, err
+        }
+    }
+    
+    return missionNum, nil
+}
+
+// CreateTeam creates the team for the mission with the given players
+// Assumes that the number of players is valid.
+func CreateTeam(gameId int, playerIds []int) error {
+    var missionId int
+
+    db, err := utils.ConnectToDB()
+    if err != nil {
+        return err
+    }
+    
+    result, err := db.Query(CURRENT_MISSION_ID_QUERY, gameId, gameId)
+    if err != nil {
+        return err
+    }
+    // We only expect one result
+    if result.Next() {
+        if err := result.Scan(&missionId); err != nil {
+            return err
+        }
+    }
+    
+    for _, playerId := range playerIds {
+        _, err = db.Exec(CREATE_TEAM_MEMBER_QUERY, missionId, playerId)
+        if err != nil {
+            return err
+        }
+    }
+    
+    return nil
+}
+
+// GetTeamSize gets the size of the current team that needs to be sent.
+func GetTeamSize(gameId int) (int, error) {
+    // Do query for the current mission number
+    missionNum, err := GetCurrentMissionNum(gameId)
+    if err != nil {
+        return -1, err
+    }
+    
+    users, err := GetPlayers(gameId)
+    if err != nil {
+        return -1, err
+    }
+    
+    teamSize, ok := numPlayersOnTeam[len(users)][missionNum]
+    if ok {
+        return teamSize, nil
+    }
+    
+    return -1, errors.New("Could not find how many players should be on this team")
 }

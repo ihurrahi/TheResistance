@@ -103,7 +103,7 @@ function handleQueryLeaderResult(parsedMessage) {
     message = "You are the leader of this mission";
     actionDiv.appendChild(document.createTextNode(message));
     actionDiv.appendChild(document.createElement("br"));
-    message = "Please select your team.";
+    message = "Please select a team of " + parsedMessage["teamSize"];
     actionDiv.appendChild(document.createTextNode(message));
     actionDiv.appendChild(document.createElement("br"));
     
@@ -125,8 +125,23 @@ function handleQueryLeaderResult(parsedMessage) {
       form.appendChild(document.createElement("br"));
     }
     var submitButton = document.createElement("input");
-    submitButton.type = "submit";
+    submitButton.type = "button";
     submitButton.value = "Send";
+    submitButton.onclick = function() {
+      var userIds = [];
+      var inputs = form.getElementsByTagName("input");
+      for (var index in inputs) {
+        if (inputs[index].type == "checkbox" && inputs[index].checked) {
+          userIds.push(inputs[index].value);
+        }
+      }
+      if (userIds.length != parsedMessage["teamSize"]) {
+        alert("Please select a team of " + parsedMessage["teamSize"]) + ".";
+      } else {
+        sendResistanceMessage("startMission", {"team": userIds});
+      }
+      return true;
+    }
     form.appendChild(submitButton);
     
     actionDiv.appendChild(form);

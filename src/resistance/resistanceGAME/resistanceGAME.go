@@ -20,6 +20,8 @@ const (
     USER_ID_KEY = "userId"
     ROLE_KEY = "role"
     IS_LEADER_KEY = "isLeader"
+    TEAMS_KEY = "team"
+    TEAM_SIZE_KEY = "teamSize"
     
     // messages received from the frontend
     PLAYER_CONNECT_MESSAGE = "playerConnect"
@@ -27,6 +29,7 @@ const (
     START_GAME_MESSAGE = "startGame"
     QUERY_ROLE_MESSAGE = "queryRole"
     QUERY_LEADER_MESSAGE = "queryLeader"
+    START_MISSION_MESSAGE = "startMission"
     
     // messages sent to the frontend
     PLAYERS_MESSAGE = "players"
@@ -34,6 +37,7 @@ const (
     QUERY_ROLE_RESULT_MESSAGE = "queryRoleResult"
     QUERY_LEADER_RESULT_MESSAGE = "queryLeaderResult"
     MISSION_PREPARATION_MESSAGE = "missionPreparation"
+    TEAM_APPROVAL_MESSAGE = "teamApproval"
 )
 
 // handlePlayerConnect handles the message that is sent when a player
@@ -141,7 +145,6 @@ func handleQueryLeader(message map[string]interface{}, player *users.User) map[s
     if err == nil {
         isLeader, err := game.IsUserMissionLeader(player.UserId, gameId)
         if err == nil {
-            utils.LogMessage("err == nil", utils.RESISTANCE_LOG_PATH)
             returnMessage[MESSAGE_KEY] = QUERY_LEADER_RESULT_MESSAGE
             returnMessage[IS_LEADER_KEY] = isLeader
             
@@ -149,6 +152,12 @@ func handleQueryLeader(message map[string]interface{}, player *users.User) map[s
                 allPlayers, err := game.GetPlayers(gameId)
                 if err == nil {
                     returnMessage[PLAYERS_KEY] = allPlayers
+                }
+                // TODO: error checking
+                
+                teamSize, err := game.GetTeamSize(gameId)
+                if err == nil {
+                    returnMessage[TEAM_SIZE_KEY] = teamSize
                 }
                 // TODO: error checking
             }
@@ -159,6 +168,55 @@ func handleQueryLeader(message map[string]interface{}, player *users.User) map[s
         
     }
     // TODO: error checking
+    
+    return returnMessage
+}
+
+// handleStartMission handles the message when the leader
+// sends in the team.
+func handleStartMission(message map[string]interface{}, connectingPlayer *users.User, pubSocket *zmq.Socket) map[string]interface{} {
+    // TODO validate user is mission leader
+    
+    var returnMessage = make(map[string]interface{})
+    teamIds := make([]string, 0)
+    rawTeamIds, ok := message[TEAMS_KEY].([]interface{})
+    if ok {
+	    for _, rawTeamId := range rawTeamIds {
+	        teamId, ok := rawTeamId.(string)
+	        if ok {
+	            teamIds = append(teamIds, teamId)
+	        } 
+	    }
+    }
+    team := make([]string, len(teamIds))
+    parsedTeamIds := make([]int, len(teamIds))
+    for i, teamId := range teamIds {
+        parsedTeamId, _ := strconv.Atoi(teamId)
+        // TODO: error checking
+        user:= users.LookupUserById(parsedTeamId)
+        if user.IsValidUser() { 
+            team[i] = user.Username
+            parsedTeamIds[i] = parsedTeamId
+        } else {
+            utils.LogMessage("User Id for team not found: " + teamId, utils.RESISTANCE_LOG_PATH)
+        }
+    }
+    gameId, err := strconv.Atoi(message[GAME_ID_KEY].(string))
+    if err == nil {
+        err = game.CreateTeam(gameId, parsedTeamIds)
+        if err == nil {
+            var teamApprovalMessage = make(map[string]interface{})
+            teamApprovalMessage[MESSAGE_KEY] = TEAM_APPROVAL_MESSAGE
+            teamApprovalMessage[TEAMS_KEY] = team
+            sendMessageToSubscribers(gameId, teamApprovalMessage, pubSocket)
+        } else {
+            utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
+        }
+        // TODO error checking
+    } else {
+        utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
+    }
+    // TODO error checking
     
     return returnMessage
 }
@@ -238,6 +296,8 @@ func main() {
                 returnMessage = handleQueryRole(parsedMessage, user)
             case parsedMessage[MESSAGE_KEY] == QUERY_LEADER_MESSAGE:
                 returnMessage = handleQueryLeader(parsedMessage, user)
+            case parsedMessage[MESSAGE_KEY] == START_MISSION_MESSAGE:
+                returnMessage = handleStartMission(parsedMessage, user, pubSocket)
         }
         
         marshalledMessage, err := json.Marshal(returnMessage)
