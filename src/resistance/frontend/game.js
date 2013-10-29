@@ -32,6 +32,9 @@ function handleMessage(message) {
     case "teamApproval":
       handleTeamApproval(object);
       break;
+    case "approveTeamUpdate":
+      handleApproveTeamUpdate(object);
+      break;
     default:
       // used for debugging
       //alert("Unknown message: " + object.message);
@@ -184,6 +187,18 @@ function handleTeamApproval(parsedMessage) {
     sendResistanceMessage("approveTeam", {"vote":false});
   }
   actionDiv.appendChild(noButton);
+}
+
+function handleApproveTeamUpdate(parsedMessage) {
+  var actionDiv = document.getElementById("action");
+  var message = parsedMessage.username + " voted ";
+  if (parsedMessage.vote == true) {
+    message += "yes";
+  } else if (parsedMessage.vote == false) {
+    message += "no";
+  }
+  addBreak(actionDiv);
+  actionDiv.appendChild(document.createTextNode(message));
 }
 
 function addBreak(divElement) {
