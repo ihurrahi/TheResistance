@@ -33,6 +33,7 @@ const (
     CREATE_MISSION_QUERY = "insert into missions (`game_id`, `mission_num`, `leader_id`) values (?, ?, ?)"
     CREATE_TEAM_MEMBER_QUERY = "insert into teams (`mission_id`, `user_id`) values (?, ?)"
     CURRENT_MISSION_ID_QUERY = "select mission_id from missions where mission_num = (" + CURRENT_MISSION_NUM_QUERY + ") and game_id = ?"
+    ADD_VOTE_QUERY = "insert into votes (`mission_id`, `user_id`, `vote`) values (?, ?, ?)"
 )
 
 // numPlayersToNumSpies gives you how many spies there should be in a game
@@ -483,4 +484,33 @@ func GetTeamSize(gameId int) (int, error) {
     }
     
     return -1, errors.New("Could not find how many players should be on this team")
+}
+
+// AddTeamVote adds a vote for the team of the current mission
+// under the given user id
+func AddTeamVote(gameId int, userId int, vote bool) error {
+    var missionId int
+
+    db, err := utils.ConnectToDB()
+    if err != nil {
+        return err
+    }
+    
+    result, err := db.Query(CURRENT_MISSION_ID_QUERY, gameId, gameId)
+    if err != nil {
+        return err
+    }
+    // We only expect one result
+    if result.Next() {
+        if err := result.Scan(&missionId); err != nil {
+            return err
+        }
+    }
+    
+    _, err = db.Exec(ADD_VOTE_QUERY, missionId, userId, vote)
+    if err != nil {
+        return err
+    }
+    
+    return nil
 }

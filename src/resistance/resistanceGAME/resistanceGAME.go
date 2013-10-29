@@ -22,6 +22,8 @@ const (
     IS_LEADER_KEY = "isLeader"
     TEAMS_KEY = "team"
     TEAM_SIZE_KEY = "teamSize"
+    VOTE_KEY = "vote"
+    USERNAME_KEY = "username"
     
     // messages received from the frontend
     PLAYER_CONNECT_MESSAGE = "playerConnect"
@@ -30,6 +32,7 @@ const (
     QUERY_ROLE_MESSAGE = "queryRole"
     QUERY_LEADER_MESSAGE = "queryLeader"
     START_MISSION_MESSAGE = "startMission"
+    APPROVE_TEAM_MESSAGE = "approveTeam"
     
     // messages sent to the frontend
     PLAYERS_MESSAGE = "players"
@@ -38,6 +41,7 @@ const (
     QUERY_LEADER_RESULT_MESSAGE = "queryLeaderResult"
     MISSION_PREPARATION_MESSAGE = "missionPreparation"
     TEAM_APPROVAL_MESSAGE = "teamApproval"
+    APPROVE_TEAM_UPDATE_MESSAGE = "approveTeamUpdate"
 )
 
 // handlePlayerConnect handles the message that is sent when a player
@@ -181,12 +185,12 @@ func handleStartMission(message map[string]interface{}, connectingPlayer *users.
     teamIds := make([]string, 0)
     rawTeamIds, ok := message[TEAMS_KEY].([]interface{})
     if ok {
-	    for _, rawTeamId := range rawTeamIds {
-	        teamId, ok := rawTeamId.(string)
-	        if ok {
-	            teamIds = append(teamIds, teamId)
-	        } 
-	    }
+        for _, rawTeamId := range rawTeamIds {
+            teamId, ok := rawTeamId.(string)
+            if ok {
+                teamIds = append(teamIds, teamId)
+            } 
+        }
     }
     team := make([]string, len(teamIds))
     parsedTeamIds := make([]int, len(teamIds))
@@ -217,6 +221,31 @@ func handleStartMission(message map[string]interface{}, connectingPlayer *users.
         utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
     }
     // TODO error checking
+    
+    return returnMessage
+}
+
+// handleApproveTeam handles the message from the frontend
+// that votes for the whether the team can go on the mission.
+func handleApproveTeam(message map[string]interface{}, connectingPlayer *users.User, pubSocket *zmq.Socket) map[string]interface{} {
+    var returnMessage = make(map[string]interface{})
+    
+    gameId, err := strconv.Atoi(message[GAME_ID_KEY].(string))
+    if err == nil {
+        vote, ok := message[VOTE_KEY].(bool)
+        if ok {
+            err = game.AddTeamVote(gameId, connectingPlayer.UserId, vote)
+            if err == nil {
+                var approveTeamUpdateMessage = make(map[string]interface{})
+                approveTeamUpdateMessage[MESSAGE_KEY] = APPROVE_TEAM_UPDATE_MESSAGE
+                approveTeamUpdateMessage[USERNAME_KEY] = connectingPlayer.Username
+                approveTeamUpdateMessage[VOTE_KEY] = vote
+                sendMessageToSubscribers(gameId, approveTeamUpdateMessage, pubSocket)
+            } else {
+                utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
+            }
+        }
+    }
     
     return returnMessage
 }
@@ -298,6 +327,8 @@ func main() {
                 returnMessage = handleQueryLeader(parsedMessage, user)
             case parsedMessage[MESSAGE_KEY] == START_MISSION_MESSAGE:
                 returnMessage = handleStartMission(parsedMessage, user, pubSocket)
+            case parsedMessage[MESSAGE_KEY] == APPROVE_TEAM_MESSAGE:
+                returnMessage = handleApproveTeam(parsedMessage, user, pubSocket)
         }
         
         marshalledMessage, err := json.Marshal(returnMessage)
