@@ -29,6 +29,9 @@ function handleMessage(message) {
     case "queryLeaderResult":
       handleQueryLeaderResult(object);
       break;
+    case "teamApproval":
+      handleTeamApproval(object);
+      break;
     default:
       // used for debugging
       //alert("Unknown message: " + object.message);
@@ -97,15 +100,15 @@ function handleMissionPreparation(parsedMessage) {
 }
 
 function handleQueryLeaderResult(parsedMessage) {
+  clearActionDiv();
   var actionDiv = document.getElementById("action");
-  var br = document.createElement("br");
   if (parsedMessage.isLeader) {
     message = "You are the leader of this mission";
     actionDiv.appendChild(document.createTextNode(message));
-    actionDiv.appendChild(document.createElement("br"));
+    addBreak(actionDiv);
     message = "Please select a team of " + parsedMessage["teamSize"] + ".";
     actionDiv.appendChild(document.createTextNode(message));
-    actionDiv.appendChild(document.createElement("br"));
+    addBreak(actionDiv);
     
     var form = document.createElement("form");
     for (var index in parsedMessage.players) {
@@ -122,8 +125,9 @@ function handleQueryLeaderResult(parsedMessage) {
       
       form.appendChild(option);
       form.appendChild(label);
-      form.appendChild(document.createElement("br"));
+      addBreak(form);
     }
+    addBreak(form);
     var submitButton = document.createElement("input");
     submitButton.type = "button";
     submitButton.value = "Send";
@@ -149,6 +153,47 @@ function handleQueryLeaderResult(parsedMessage) {
   } else {
     actionDiv.appendChild(document.createTextNode("You are not the leader."));
   }
+}
+
+function handleTeamApproval(parsedMessage) {
+  clearActionDiv();
+  var actionDiv = document.getElementById("action");
+  var message = "Do you approve of this team?"
+  actionDiv.appendChild(document.createTextNode(message));
+  addBreak(actionDiv);
+  for (var index in parsedMessage.team) {
+    actionDiv.appendChild(document.createTextNode(parsedMessage.team[index]));
+    addBreak(actionDiv);
+  }
+  var yesButton = document.createElement("input");
+  yesButton.type = "button";
+  yesButton.value = "Yes";
+  yesButton.onclick = function() {
+    yesButton.disabled = true;
+    noButton.disabled = true;
+    sendResistanceMessage("approveTeam", {"vote":true});
+  }
+  actionDiv.appendChild(yesButton);
+  
+  var noButton = document.createElement("input");
+  noButton.type = "button";
+  noButton.value = "No";
+  noButton.onclick = function() {
+    yesButton.disabled = true;
+    noButton.disabled = true;
+    sendResistanceMessage("approveTeam", {"vote":false});
+  }
+  actionDiv.appendChild(noButton);
+}
+
+function addBreak(divElement) {
+  var br = document.createElement("br");
+  divElement.appendChild(br);
+}
+
+function clearActionDiv() {
+  var actionDiv = document.getElementById("action");
+  actionDiv.innerHTML = ""
 }
 
 function sendResistanceMessage(message, arguments) {
