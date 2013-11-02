@@ -18,6 +18,9 @@ const (
     HOST_ID_KEY = "host"
     RESISTANCE_ROLE = "R"
     SPY_ROLE = "S"
+    RESISTANCE_RESULT_STRING = "RESISTANCE"
+    SPY_RESULT_STRING = "SPY"
+    CANCELED_RESULT_STRING = "CANCELED"
     
     CREATE_GAME_QUERY = "insert into games (`title`, `host_id`, `status`) values (?, ?, \"" + GAME_STATUS_LOBBY + "\")"
     GET_GAME_NAME_QUERY = "select title from games where game_id = ?"
@@ -28,12 +31,16 @@ const (
     NUM_PLAYERS_QUERY = "select user_id from players where game_id = ?"
     SET_PLAYER_ROLE_QUERY = "update players set role = ? where user_id = ? and game_id = ?"
     PLAYER_ROLE_QUERY = "select role from players where user_id = ? and game_id = ?"
-    MISSION_LEADER_QUERY = "select leader_id from missions where game_id = ? order by mission_num desc limit 1"
+    MISSION_LEADER_QUERY = "select leader_id from missions where mission_id = (" + CURRENT_MISSION_ID_QUERY + ")"
     CURRENT_MISSION_NUM_QUERY = "select ifnull(max(mission_num),0) from missions where game_id = ?"
     CREATE_MISSION_QUERY = "insert into missions (`game_id`, `mission_num`, `leader_id`) values (?, ?, ?)"
     CREATE_TEAM_MEMBER_QUERY = "insert into teams (`mission_id`, `user_id`) values (?, ?)"
-    CURRENT_MISSION_ID_QUERY = "select mission_id from missions where mission_num = (" + CURRENT_MISSION_NUM_QUERY + ") and game_id = ?"
+    CURRENT_MISSION_ID_QUERY = "select mission_id from missions where game_id = ? order by mission_id desc limit 1"
     ADD_VOTE_QUERY = "insert into votes (`mission_id`, `user_id`, `vote`) values (?, ?, ?)"
+    ALL_VOTES_IN_QUERY = "select (select count(*) from votes where mission_id = ?) >= (select count(*) from players join missions on players.game_id = missions.game_id where mission_id = ?)"
+    TEAM_APPROVED_QUERY = "select sum(vote) > sum(vote = 0) from votes where mission_id = ?"
+    SET_MISSION_RESULT_QUERY = "update missions set result = ? where mission_id = ?"
+    GET_CURRENT_MISSION_RESULT_QUERY = "select result from missions where mission_id = (" + CURRENT_MISSION_ID_QUERY + ")"
 )
 
 // numPlayersToNumSpies gives you how many spies there should be in a game
@@ -362,7 +369,27 @@ func StartNextMission(gameId int) error {
     if err != nil {
         return err
     } else {
-        nextMissionNum = missionNum + 1
+        if missionNum == 0 {
+            nextMissionNum = 1
+        } else {
+	        result, err := db.Query(GET_CURRENT_MISSION_RESULT_QUERY, gameId)
+	        if err != nil {
+	            return err
+	        } else {
+	            var missionResult string
+	            if result.Next() {
+	                if err := result.Scan(&missionResult); err == nil {
+	                    if missionResult != CANCELED_RESULT_STRING {
+	                        nextMissionNum = missionNum + 1
+	                    } else {
+	                        nextMissionNum = missionNum
+	                    }
+	                }
+	                // TODO error checking
+	            }
+	            // TODO error checking
+	        }
+	    }
     }
     
     // Do query for the new leader
@@ -444,7 +471,7 @@ func CreateTeam(gameId int, playerIds []int) error {
         return err
     }
     
-    result, err := db.Query(CURRENT_MISSION_ID_QUERY, gameId, gameId)
+    result, err := db.Query(CURRENT_MISSION_ID_QUERY, gameId)
     if err != nil {
         return err
     }
@@ -496,7 +523,7 @@ func AddTeamVote(gameId int, userId int, vote bool) error {
         return err
     }
     
-    result, err := db.Query(CURRENT_MISSION_ID_QUERY, gameId, gameId)
+    result, err := db.Query(CURRENT_MISSION_ID_QUERY, gameId)
     if err != nil {
         return err
     }
@@ -508,6 +535,95 @@ func AddTeamVote(gameId int, userId int, vote bool) error {
     }
     
     _, err = db.Exec(ADD_VOTE_QUERY, missionId, userId, vote)
+    if err != nil {
+        return err
+    }
+    
+    return nil
+}
+
+// CheckMissionVotes checks that the current mission's votes are all in.
+// If it is, it will also return whether the mission was approved in the
+// format (missionApproved, allVotesIn, error)
+func CheckMissionVotes(gameId int) (bool, bool, error) {
+    var missionId int
+    var allVotesIn bool
+    var missionApproved bool
+
+    db, err := utils.ConnectToDB()
+    if err != nil {
+        return false, false, err
+    }
+    
+    // Query for current mission id
+    result, err := db.Query(CURRENT_MISSION_ID_QUERY, gameId)
+    if err != nil {
+        return false, false, err
+    }
+    // We only expect one result
+    if result.Next() {
+        if err := result.Scan(&missionId); err != nil {
+            return false, false, err
+        }
+    }
+    
+    // Query to see if all votes are in
+    result, err = db.Query(ALL_VOTES_IN_QUERY, missionId, missionId)
+    if err != nil {
+        return false, false, err
+    }
+    // We only expect one result
+    if result.Next() {
+        if err := result.Scan(&allVotesIn); err != nil {
+            return false, false, err
+        }
+    }
+    
+    // Query to see whether the mission got approved
+    result, err = db.Query(TEAM_APPROVED_QUERY, missionId)
+    if err != nil {
+        return false, false, err
+    }
+    // We only expect one result
+    if result.Next() {
+        if err := result.Scan(&missionApproved); err != nil {
+            return false, false, err
+        }
+    }
+    
+    return missionApproved, allVotesIn, nil
+}
+
+// SetMissionResult sets the given result as the result for
+// the current mission
+func SetMissionResult(gameId int, result string) error {
+    if result != RESISTANCE_RESULT_STRING && result != SPY_RESULT_STRING && result != CANCELED_RESULT_STRING {
+        return errors.New("Invalid result string supplied to SetMissionResult")
+    }
+
+    var missionId int
+
+    db, err := utils.ConnectToDB()
+    if err != nil {
+        return err
+    }
+    
+    // Query for current mission id
+    queryResult, err := db.Query(CURRENT_MISSION_ID_QUERY, gameId)
+    if err != nil {
+        return err
+    }
+    // We only expect one result
+    if queryResult.Next() {
+        if err := queryResult.Scan(&missionId); err != nil {
+            return err
+        }
+    }
+    
+    utils.LogMessage(result, utils.RESISTANCE_LOG_PATH)
+    utils.LogMessage(strconv.Itoa(missionId), utils.RESISTANCE_LOG_PATH)
+    
+    _, err = db.Exec(SET_MISSION_RESULT_QUERY, result, missionId)
     if err != nil {
         return err
     }
