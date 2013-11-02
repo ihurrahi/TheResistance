@@ -42,6 +42,7 @@ const (
     MISSION_PREPARATION_MESSAGE = "missionPreparation"
     TEAM_APPROVAL_MESSAGE = "teamApproval"
     APPROVE_TEAM_UPDATE_MESSAGE = "approveTeamUpdate"
+    MISSION_STARTED_MESSAGE = "missionStarted"
 )
 
 // handlePlayerConnect handles the message that is sent when a player
@@ -162,8 +163,9 @@ func handleQueryLeader(message map[string]interface{}, player *users.User) map[s
                 teamSize, err := game.GetTeamSize(gameId)
                 if err == nil {
                     returnMessage[TEAM_SIZE_KEY] = teamSize
+                } else {
+                    utils.LogMessage("Error getting the team size " + err.Error(), utils.RESISTANCE_LOG_PATH)
                 }
-                // TODO: error checking
             }
         } else {
             utils.LogMessage("err != nil, " + err.Error(), utils.RESISTANCE_LOG_PATH)
@@ -244,8 +246,35 @@ func handleApproveTeam(message map[string]interface{}, connectingPlayer *users.U
             } else {
                 utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
             }
+            
+            missionApproved, allVotesIn, err := game.CheckMissionVotes(gameId)
+            if err == nil && allVotesIn {
+                if missionApproved {
+                    var missionApprovedMessage = make(map[string]interface{})
+                    missionApprovedMessage[MESSAGE_KEY] = MISSION_STARTED_MESSAGE
+                    sendMessageToSubscribers(gameId, missionApprovedMessage, pubSocket)
+                } else {
+                    err = game.SetMissionResult(gameId, game.CANCELED_RESULT_STRING)
+                    if err != nil {
+                        utils.LogMessage("Error setting mission result to canceled for game " + strconv.Itoa(gameId) + err.Error(), utils.RESISTANCE_LOG_PATH)
+                    }
+                
+                    err = game.StartNextMission(gameId)
+                    if err != nil {
+                        utils.LogMessage("Error starting mission for game " + strconv.Itoa(gameId) + err.Error(), utils.RESISTANCE_LOG_PATH)
+                    }
+                    // TODO: error check here
+                
+                    var missionPreparationMessage = make(map[string]interface{})
+                    missionPreparationMessage[MESSAGE_KEY] = MISSION_PREPARATION_MESSAGE
+                    sendMessageToSubscribers(gameId, missionPreparationMessage, pubSocket)
+                }
+            }
+            // TODO error checking
         }
+        // TODO error checking
     }
+    // TODO error checking
     
     return returnMessage
 }
