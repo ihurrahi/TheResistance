@@ -24,6 +24,7 @@ const (
     TEAM_SIZE_KEY = "teamSize"
     VOTE_KEY = "vote"
     USERNAME_KEY = "username"
+    IS_ON_MISSION_KEY = "isOnMission"
     
     // messages received from the frontend
     PLAYER_CONNECT_MESSAGE = "playerConnect"
@@ -33,6 +34,7 @@ const (
     QUERY_LEADER_MESSAGE = "queryLeader"
     START_MISSION_MESSAGE = "startMission"
     APPROVE_TEAM_MESSAGE = "approveTeam"
+    QUERY_IS_ON_MISSION_MESSAGE = "queryIsOnMission"
     
     // messages sent to the frontend
     PLAYERS_MESSAGE = "players"
@@ -43,6 +45,7 @@ const (
     TEAM_APPROVAL_MESSAGE = "teamApproval"
     APPROVE_TEAM_UPDATE_MESSAGE = "approveTeamUpdate"
     MISSION_STARTED_MESSAGE = "missionStarted"
+    QUERY_IS_ON_MISSION_RESULT_MESSAGE = "queryIsOnMissionResult"
 )
 
 // handlePlayerConnect handles the message that is sent when a player
@@ -279,6 +282,26 @@ func handleApproveTeam(message map[string]interface{}, connectingPlayer *users.U
     return returnMessage
 }
 
+// handleQueryIsOnMission handles the message from the frontend
+// asking if the requesting user is on the current mission.
+// Assumes that the mission has been approved.
+func handleQueryIsOnMission(message map[string]interface{}, connectingPlayer *users.User) map[string]interface{} {
+    var returnMessage = make(map[string]interface{})
+    
+    gameId, err := strconv.Atoi(message[GAME_ID_KEY].(string))
+    if err == nil {
+        isOnMission, err := game.IsUserOnMission(gameId, connectingPlayer.UserId)
+        if err == nil {
+            returnMessage[MESSAGE_KEY] = QUERY_IS_ON_MISSION_RESULT_MESSAGE
+            returnMessage[IS_ON_MISSION_KEY] = isOnMission
+        }
+        // TODO error checking
+    }
+    // TODO error checking
+    
+    return returnMessage
+}
+
 // parseMessage parses every message that comes in and puts it into a Go struct.
 func parseMessage(msg []byte) map[string]interface{} {
     var parsedMessage = make(map[string]interface{})
@@ -358,6 +381,8 @@ func main() {
                 returnMessage = handleStartMission(parsedMessage, user, pubSocket)
             case parsedMessage[MESSAGE_KEY] == APPROVE_TEAM_MESSAGE:
                 returnMessage = handleApproveTeam(parsedMessage, user, pubSocket)
+            case parsedMessage[MESSAGE_KEY] == QUERY_IS_ON_MISSION_MESSAGE:
+                returnMessage = handleQueryIsOnMission(parsedMessage, user)
         }
         
         marshalledMessage, err := json.Marshal(returnMessage)
