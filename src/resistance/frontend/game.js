@@ -35,6 +35,9 @@ function handleMessage(message) {
     case "approveTeamUpdate":
       handleApproveTeamUpdate(object);
       break;
+    case "missionStarted":
+      handleMissionStarted(object);
+      break;
     default:
       // used for debugging
       //alert("Unknown message: " + object.message);
@@ -199,6 +202,10 @@ function handleApproveTeamUpdate(parsedMessage) {
   }
   addBreak(actionDiv);
   actionDiv.appendChild(document.createTextNode(message));
+}
+
+function handleMissionStarted(parsedMessage) {
+  sendResistanceMessage("queryIsOnMission");
 }
 
 function addBreak(divElement) {
