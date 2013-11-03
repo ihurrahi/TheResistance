@@ -112,12 +112,14 @@ func ValidateGameRequest(gameIdString string, user *users.User) (int, error) {
     if results.Next() {
         var gameStatus string
         if err := results.Scan(&gameStatus); err == nil {
-            // Error if game is already done.
-            if gameStatus == GAME_STATUS_DONE {
-                return -1, errors.New("Cannot join a game that is already done.")
-            }
-            if gameStatus == GAME_STATUS_IN_PROGRESS {
-                // TODO: error check for joining games in progress
+            switch {
+                default:
+                case gameStatus == GAME_STATUS_DONE:
+                    return -1, errors.New("Cannot join a game that is already done.")
+                case gameStatus == GAME_STATUS_IN_PROGRESS:
+                    // TODO: error check for joining games in progress (already exist in players list)
+                case gameStatus == GAME_STATUS_LOBBY:
+                    //TODO: error check for joining games in lobby (no more than 10 players)
             }
         } else {
             return -1, err
