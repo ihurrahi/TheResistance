@@ -38,6 +38,9 @@ function handleMessage(message) {
     case "missionStarted":
       handleMissionStarted(object);
       break;
+    case "queryIsOnMissionResult":
+      handleQueryIsOnMissionResult(object);
+      break;
     default:
       // used for debugging
       //alert("Unknown message: " + object.message);
@@ -206,6 +209,39 @@ function handleApproveTeamUpdate(parsedMessage) {
 
 function handleMissionStarted(parsedMessage) {
   sendResistanceMessage("queryIsOnMission");
+}
+
+function handleQueryIsOnMissionResult(parsedMessage) {
+  clearActionDiv();
+  var actionDiv = document.getElementById("action");
+  if (parsedMessage.isOnMission) {
+    actionDiv.appendChild(document.createTextNode("You have been selected to go on the mission."));
+    addBreak(actionDiv);
+    actionDiv.appendChild(document.createTextNode("Choose your mission outcome."));
+    addBreak(actionDiv);
+
+    var successButton = document.createElement("input");
+    successButton.type = "button";
+    successButton.value = "Success";
+    successButton.onclick = function() {
+      successButton.disabled = true;
+      failButton.disabled = true;
+      sendResistanceMessage("missionOutcome", {"outcome":true});
+    }
+    actionDiv.appendChild(successButton);
+    
+    var failButton = document.createElement("input");
+    failButton.type = "button";
+    failButton.value = "Fail";
+    failButton.onclick = function() {
+      successButton.disabled = true;
+      failButton.disabled = true;
+      sendResistanceMessage("missionOutcome", {"outcome":false});
+    }
+    actionDiv.appendChild(failButton);
+  } else {
+    actionDiv.appendChild(document.createTextNode("Waiting for mission to finish..."));
+  }
 }
 
 function addBreak(divElement) {
