@@ -1,0 +1,17 @@
+#!/bin/bash
+
+
+if [ "$1" != "GAME" ] && [ "$1" != "WSP" ] && [ "$1" != "HTTP" ]
+then
+  echo "resistance module not recognized."
+  exit 1
+fi
+
+cd $GOPATH
+go install resistance/resistance$1
+if [ $? -ne 0 ]
+then
+	exit $?
+fi
+cd - > /dev/null
+

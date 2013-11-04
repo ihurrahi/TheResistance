@@ -1,0 +1,16 @@
+#!/bin/bash
+
+if [ "$1" != "GAME" ] && [ "$1" != "WSP" ] && [ "$1" != "HTTP" ]
+then
+	echo "resistance module not recognized."
+	exit 1
+fi
+
+processId=$(ps aux | grep resistance$1 | grep -v grep | grep -v $0 | awk '{print $2}')
+if [ -z $processId ]
+then
+	echo "resistance$1 is not running"
+else
+  kill -9 $processId
+	echo "Killed resistance$1"
+fi

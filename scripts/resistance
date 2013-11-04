@@ -1,0 +1,49 @@
+#/bin/bash
+
+case "$2" in
+	GAME) targetModule="GAME";;
+	WSP)  targetModule="WSP";;
+	HTTP) targetModule="HTTP";;
+	ALL)  targetModule="ALL";;
+	*)    echo "Target module not recognized"
+	      exit 1;;
+esac
+
+case "$1" in 
+	start) echo "Starting resistance server..."
+	       if [ $targetModule == "ALL" ]
+				 then
+	         $GOPATH/scripts/start_resistance HTTP
+	         $GOPATH/scripts/start_resistance WSP
+	         $GOPATH/scripts/start_resistance GAME
+				 else
+           $GOPATH/scripts/start_resistance $targetModule
+				 fi
+				 echo "Started."
+				 ;;
+
+	stop)  echo "Stopping resistance server..."
+	       if [ $targetModule == "ALL" ]
+				 then
+	         $GOPATH/scripts/stop_resistance HTTP
+	         $GOPATH/scripts/stop_resistance WSP
+	         $GOPATH/scripts/stop_resistance GAME
+				 else
+           $GOPATH/scripts/stop_resistance $targetModule
+				 fi
+				 echo "Stopped."
+				 ;;
+
+  build) echo "Building resistance..."
+	       if [ $targetModule == "ALL" ]
+				 then
+	         $GOPATH/scripts/build_resistance HTTP
+	         $GOPATH/scripts/build_resistance WSP
+	         $GOPATH/scripts/build_resistance GAME
+				 else
+           $GOPATH/scripts/build_resistance $targetModule
+				 fi
+				 echo "Built."
+				 ;;
+	*)     echo "Command $1 not recognized"
+esac
