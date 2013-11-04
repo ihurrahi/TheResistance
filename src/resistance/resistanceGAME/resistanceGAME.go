@@ -25,6 +25,7 @@ const (
     VOTE_KEY = "vote"
     USERNAME_KEY = "username"
     IS_ON_MISSION_KEY = "isOnMission"
+    OUTCOME_KEY = "outcome"
     
     // messages received from the frontend
     PLAYER_CONNECT_MESSAGE = "playerConnect"
@@ -35,6 +36,7 @@ const (
     START_MISSION_MESSAGE = "startMission"
     APPROVE_TEAM_MESSAGE = "approveTeam"
     QUERY_IS_ON_MISSION_MESSAGE = "queryIsOnMission"
+    MISSION_OUTCOME_MESSAGE = "missionOutcome"
     
     // messages sent to the frontend
     PLAYERS_MESSAGE = "players"
@@ -302,6 +304,39 @@ func handleQueryIsOnMission(message map[string]interface{}, connectingPlayer *us
     return returnMessage
 }
 
+// handleMissionOutcome handles the message from the frontend
+// after a player has put in their mission outcome - a "success"
+// or a "fail"
+func handleMissionOutcome(message map[string]interface{}, connectingPlayer *users.User, pubSocket *zmq.Socket) map[string]interface{} {
+    var returnMessage = make(map[string]interface{})
+    
+    gameId, err := strconv.Atoi(message[GAME_ID_KEY].(string))
+    if err == nil {
+        missionOutcome, ok := message[OUTCOME_KEY].(bool)
+        if ok {
+            err = game.AddMissionOutcome(gameId, connectingPlayer.UserId, missionOutcome)
+            if err == nil {
+                isMissionOver, err := game.IsCurrentMissionOver(gameId)
+                if err != nil {
+                    if isMissionOver {
+                        // if it is, check if game is over
+                        // if it is, send game over message
+                        // otherwise, send mission preparation message
+                    }
+                    // if mission is not over, do nothing and keep waiting for responses
+                }
+                // TODO error checking
+            } else {
+                utils.LogMessage("Error adding mission outcome: " + err.Error(), utils.RESISTANCE_LOG_PATH)
+            }
+        }
+        // TODO error checking
+    }
+    // TODO error checking
+    
+    return returnMessage
+}
+
 // parseMessage parses every message that comes in and puts it into a Go struct.
 func parseMessage(msg []byte) map[string]interface{} {
     var parsedMessage = make(map[string]interface{})
@@ -383,6 +418,8 @@ func main() {
                 returnMessage = handleApproveTeam(parsedMessage, user, pubSocket)
             case parsedMessage[MESSAGE_KEY] == QUERY_IS_ON_MISSION_MESSAGE:
                 returnMessage = handleQueryIsOnMission(parsedMessage, user)
+            case parsedMessage[MESSAGE_KEY] == MISSION_OUTCOME_MESSAGE:
+                returnMessage = handleMissionOutcome(parsedMessage, user, pubSocket)
         }
         
         marshalledMessage, err := json.Marshal(returnMessage)

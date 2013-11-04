@@ -42,6 +42,8 @@ const (
     SET_MISSION_RESULT_QUERY = "update missions set result = ? where mission_id = (" + CURRENT_MISSION_ID_QUERY + ")"
     GET_CURRENT_MISSION_RESULT_QUERY = "select result from missions where mission_id = (" + CURRENT_MISSION_ID_QUERY + ")"
     IS_USER_ON_MISSION_QUERY = "select count(*) from teams where mission_id = (" + CURRENT_MISSION_ID_QUERY + ") and user_id = ?"
+    ADD_MISSION_OUTCOME_QUERY = "update teams set outcome = ? where mission_id = (" + CURRENT_MISSION_ID_QUERY + ") and user_id = ?"
+    IS_CURRENT_MISSION_OVER_QUERY = "select count(*) = 0 from teams where mission_id = (" + CURRENT_MISSION_ID_QUERY + ") and outcome is null;"
 )
 
 // numPlayersToNumSpies gives you how many spies there should be in a game
@@ -639,4 +641,52 @@ func IsUserOnMission(gameId int, userId int) (bool, error) {
     }
     
     return isOnMission, nil
+}
+
+// AddMissionOutcome sets the outcome for the given team member
+// of the current mission of the given game id.
+func AddMissionOutcome(gameId int, userId int, outcome bool) error {
+    db, err := utils.ConnectToDB()
+    if err != nil {
+        return err
+    }
+    
+    _, err = db.Exec(ADD_MISSION_OUTCOME_QUERY, outcome, gameId, userId)
+    if err != nil {
+        return err
+    }
+    
+    return nil
+}
+
+// IsCurrentMissionOver determines if the current mission is over
+// for the given game id
+func IsCurrentMissionOver(gameId int) (bool, error) {
+    var isMissionOver bool
+
+    db, err := utils.ConnectToDB()
+    if err != nil {
+        return false, err
+    }
+    
+    result, err = db.Query(IS_CURRENT_MISSION_OVER_QUERY, gameId)
+    if err != nil {
+        return false, err
+    }
+    
+    if result.Next() {
+        if err := result.Scan(&isMissionOver); err != nil {
+            return false, err
+        }
+    }
+    
+    return isMissionOver, nil
+}
+
+// isGameOver determines if the given game is over.
+// the game is over if there are 5 of the same mission numbers
+// in CANCELED status or if either the RESISTANCE or SPY has
+// at least 3 mission wins
+func isGameOver(gameId int) (bool, error) {
+    
 }
