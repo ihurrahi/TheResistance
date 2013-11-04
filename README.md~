@@ -11,7 +11,7 @@ Dependencies
 * Go
 * Go-MySQL (github.com/go-sql-driver/mysql)
 * Go-Socket.IO (github.com/justinfx/go-socket.io)
- * Go.net/websocket (code.google.com/p/go.net)
+** Go.net/websocket (code.google.com/p/go.net)
 * ZeroMQ (github.com/alecthomas/gozmq)
 
 Running
