@@ -41,6 +41,9 @@ function handleMessage(message) {
     case "queryIsOnMissionResult":
       handleQueryIsOnMissionResult(object);
       break;
+    case "gameOver":
+      handleGameOver(object);
+      break;
     default:
       // used for debugging
       //alert("Unknown message: " + object.message);
@@ -242,6 +245,11 @@ function handleQueryIsOnMissionResult(parsedMessage) {
   } else {
     actionDiv.appendChild(document.createTextNode("Waiting for mission to finish..."));
   }
+}
+
+function handleGameOver(parsedMessage) {
+  alert("Game Over. The " + parsedMessage.winner + " team wins!");
+  window.location.assign("/home.html");
 }
 
 function addBreak(divElement) {
