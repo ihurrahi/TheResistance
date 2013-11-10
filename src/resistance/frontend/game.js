@@ -13,7 +13,12 @@ function handleMessage(message) {
   
   handleAnyErrors(object);
   
+  alert(object.message);
+  
   switch(object.message) {
+    case "playerConnectSuccessful":
+      handlePlayerConnectSuccessful(object);
+      break;
     case "players":
       handlePlayers(object);
       break;
@@ -46,7 +51,7 @@ function handleMessage(message) {
       break;
     default:
       // used for debugging
-      //alert("Unknown message: " + object.message);
+      alert("Unknown message: " + object.message);
   }
 }
 
@@ -56,6 +61,23 @@ function handleAnyErrors(parsedMessage) {
     div.innerHTML = "<b>Error: " + parsedMessage.errorMessage + "</b>";
   } else {
     div.innerHTML = "";
+  }
+}
+
+function handlePlayerConnectSuccessful(parsedMessage) {
+  var actionDiv = document.getElementById("action");
+  if (parsedMessage.isHost) {
+    startButton = document.createElement("input");
+    startButton.type = "button";
+    startButton.value = "Start";
+    startButton.id = "startButton";
+    startButton.disabled = true;
+    startButton.onclick = function () {
+      startGame();
+    }
+    actionDiv.appendChild(startButton);
+  } else {
+    actionDiv.appendChild(document.createTextNode("Waiting for host to start game..."));
   }
 }
 

@@ -24,6 +24,7 @@ const (
     
     CREATE_GAME_QUERY = "insert into games (`title`, `host_id`, `status`) values (?, ?, \"" + GAME_STATUS_LOBBY + "\")"
     GET_GAME_NAME_QUERY = "select title from games where game_id = ?"
+    IS_USER_HOST_QUERY = "select host_id = ? from games where game_id = ?"
     ADD_PLAYER_QUERY = "insert into players (`game_id`, `user_id`) values (?, ?)"
     GET_PLAYERS_QUERY = "select user_id from players where game_id = ? order by join_date"
     IS_PLAYER_IN_GAME_QUERY = "select count(*) from players where game_id = ? and user_id = ?"
@@ -164,6 +165,30 @@ func ValidateGameRequest(gameIdString string, user *users.User) (int, error) {
     return gameId, nil
 }
 
+// IsUserHost determines whether the given user id is the
+// host of the given game.
+func IsUserHost(gameId int, userId int) (bool, error) {
+    db, err := utils.ConnectToDB()
+    if err != nil {
+        return false, err
+    }
+
+    results, err := db.Query(IS_USER_HOST_QUERY, userId, gameId)
+    if err != nil {
+        return false, err
+    }
+    
+    if results.Next() {
+        var isHost bool
+        if err := results.Scan(&isHost); err == nil {
+            return isHost, nil
+        } else {
+            return false, err
+        }
+    }
+    return false, nil
+}
+
 // AddPlayer adds the given user to the given game by storing the
 // relevant information in the players table. This can only be done
 // while the game is still in the LOBBY stage.
@@ -194,7 +219,7 @@ func GetGameName(gameId int) (string, error) {
         return "", err
     }
     
-    if (results.Next()) {
+    if results.Next() {
         var gameTitle string
         if err := results.Scan(&gameTitle); err == nil {
             return gameTitle, nil

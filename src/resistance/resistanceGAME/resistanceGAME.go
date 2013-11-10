@@ -15,6 +15,7 @@ const (
     USER_COOKIE_KEY = "userCookie"
     MESSAGE_KEY = "message"
     GAME_ID_KEY = "gameId"
+    IS_HOST_KEY = "isHost"
     PLAYERS_KEY = "players"
     ACCEPT_USER_KEY = "acceptUser"
     USER_ID_KEY = "userId"
@@ -40,6 +41,7 @@ const (
     MISSION_OUTCOME_MESSAGE = "missionOutcome"
     
     // messages sent to the frontend
+    PLAYER_CONNECT_SUCCESSFUL_MESSAGE = "playerConnectSuccessful"
     PLAYERS_MESSAGE = "players"
     GAME_STARTED_MESSAGE = "gameStarted"
     QUERY_ROLE_RESULT_MESSAGE = "queryRoleResult"
@@ -74,17 +76,27 @@ func handlePlayerConnect(message map[string]interface{}, connectingPlayer *users
         // TODO: error check here
         utils.LogMessage(strconv.Itoa(len(usernames)), utils.RESISTANCE_LOG_PATH)
         
-        // Build up message.
-        returnMessage[MESSAGE_KEY] = PLAYERS_MESSAGE
-        returnMessage[PLAYERS_KEY] = usernames
-        returnMessage[GAME_ID_KEY] = gameId
+        // Build up players message.
+        var playersMessage = make(map[string]interface{})
+        playersMessage[MESSAGE_KEY] = PLAYERS_MESSAGE
+        playersMessage[PLAYERS_KEY] = usernames
+        playersMessage[GAME_ID_KEY] = gameId
     
-        sendMessageToSubscribers(gameId, returnMessage, pubSocket)
+        sendMessageToSubscribers(gameId, playersMessage, pubSocket)
         
-        // Add a few more items to tell the proxy to start a subscriber
+        // Also send a message back through the proxy to start a subscriber
         // for this player
+        returnMessage[MESSAGE_KEY] = PLAYER_CONNECT_SUCCESSFUL_MESSAGE
+        returnMessage[GAME_ID_KEY] = gameId
         returnMessage[ACCEPT_USER_KEY] = true
         returnMessage[USER_ID_KEY] = connectingPlayer.UserId
+        
+        isHost, err := game.IsUserHost(gameId, connectingPlayer.UserId)
+        if err == nil {
+            returnMessage[IS_HOST_KEY] = isHost
+        } else {
+            utils.LogMessage("Error figuring out if user is host " + err.Error(), utils.RESISTANCE_LOG_PATH)
+        }
     }
     
     return returnMessage
