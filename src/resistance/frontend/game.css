@@ -1,7 +1,7 @@
 #gameInformation {
   position: relative;
   width: 539px;
-  height: 279px;
+  height: 319px;
 }
 
 .borderDiv {
@@ -35,7 +35,7 @@
   bottom: 0;
   left: 0;
   width:360px;
-  height:220px;
+  height:260px;
 }
 
 #playerInfo {
@@ -44,12 +44,12 @@
   bottom: 0;
   right: 0;
   width:140px;
-  height:220px;
+  height:260px;
 }
 
 #action {
   position: relative;
   clear: both;
   width:518px;
-  height: 200px;
+  height: 350px;
 }
