@@ -26,6 +26,7 @@ const (
     USERNAME_KEY = "username"
     IS_ON_MISSION_KEY = "isOnMission"
     OUTCOME_KEY = "outcome"
+    GAME_WINNER_KEY = "winner"
     
     // messages received from the frontend
     PLAYER_CONNECT_MESSAGE = "playerConnect"
@@ -48,6 +49,7 @@ const (
     APPROVE_TEAM_UPDATE_MESSAGE = "approveTeamUpdate"
     MISSION_STARTED_MESSAGE = "missionStarted"
     QUERY_IS_ON_MISSION_RESULT_MESSAGE = "queryIsOnMissionResult"
+    GAME_OVER_MESSAGE = "gameOver"
 )
 
 // handlePlayerConnect handles the message that is sent when a player
@@ -314,14 +316,34 @@ func handleMissionOutcome(message map[string]interface{}, connectingPlayer *user
     if err == nil {
         missionOutcome, ok := message[OUTCOME_KEY].(bool)
         if ok {
+            // Sets the mission outcome for the player
             err = game.AddMissionOutcome(gameId, connectingPlayer.UserId, missionOutcome)
             if err == nil {
-                isMissionOver, err := game.IsCurrentMissionOver(gameId)
-                if err != nil {
+                // check if the current mission is over
+                isMissionOver, missionResult, err := game.IsCurrentMissionOver(gameId)
+                if err == nil {
                     if isMissionOver {
-                        // if it is, check if game is over
-                        // if it is, send game over message
-                        // otherwise, send mission preparation message
+                        // it is, so set the mission result
+                        _ = game.SetMissionResult(gameId, missionResult)
+                        // TODO error checking
+                        
+                        // now check if the game is over
+                        isGameOver, winner, err := game.IsGameOver(gameId)
+                        if err == nil {
+                            if isGameOver {
+                                // send game over message
+                                var gameOverMessage = make(map[string]interface{})
+                                gameOverMessage[MESSAGE_KEY] = GAME_OVER_MESSAGE
+                                gameOverMessage[GAME_WINNER_KEY] = winner
+                                sendMessageToSubscribers(gameId, gameOverMessage, pubSocket)
+                            } else {
+                                // send mission preparation message for next mission
+                                var missionPreparationMessage = make(map[string]interface{})
+                                missionPreparationMessage[MESSAGE_KEY] = MISSION_PREPARATION_MESSAGE
+                                sendMessageToSubscribers(gameId, missionPreparationMessage, pubSocket)
+                            }
+                        }
+                        // TODO error checking
                     }
                     // if mission is not over, do nothing and keep waiting for responses
                 }

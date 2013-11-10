@@ -43,7 +43,11 @@ const (
     GET_CURRENT_MISSION_RESULT_QUERY = "select result from missions where mission_id = (" + CURRENT_MISSION_ID_QUERY + ")"
     IS_USER_ON_MISSION_QUERY = "select count(*) from teams where mission_id = (" + CURRENT_MISSION_ID_QUERY + ") and user_id = ?"
     ADD_MISSION_OUTCOME_QUERY = "update teams set outcome = ? where mission_id = (" + CURRENT_MISSION_ID_QUERY + ") and user_id = ?"
-    IS_CURRENT_MISSION_OVER_QUERY = "select count(*) = 0 from teams where mission_id = (" + CURRENT_MISSION_ID_QUERY + ") and outcome is null;"
+    IS_CURRENT_MISSION_OVER_QUERY = "select count(*) = 0 from teams where mission_id = (" + CURRENT_MISSION_ID_QUERY + ") and outcome is null"
+    NUM_FAILS_IN_CURRENT_MISSION_QUERY = "select count(*) from teams where mission_id = (" + CURRENT_MISSION_ID_QUERY + ") and outcome = b'0'"
+    RESISTANCE_WINS_QUERY = "select count(*) from missions where result = '" + RESISTANCE_RESULT_STRING + "' and game_id = ?"
+    SPY_WINS_QUERY = "select count(*) from missions where result = '" + SPY_RESULT_STRING + "' and game_id = ?"
+    CANCELED_CURRENT_MISSIONS_QUERY = "select count(*) from missions where mission_num = (" + CURRENT_MISSION_NUM_QUERY + ") and result = '" + CANCELED_RESULT_STRING + "' and game_id = ?"
 )
 
 // numPlayersToNumSpies gives you how many spies there should be in a game
@@ -661,32 +665,137 @@ func AddMissionOutcome(gameId int, userId int, outcome bool) error {
 
 // IsCurrentMissionOver determines if the current mission is over
 // for the given game id
-func IsCurrentMissionOver(gameId int) (bool, error) {
+func IsCurrentMissionOver(gameId int) (bool, string, error) {
     var isMissionOver bool
+    var missionWinner string
 
     db, err := utils.ConnectToDB()
     if err != nil {
-        return false, err
+        return false, "", err
     }
     
-    result, err = db.Query(IS_CURRENT_MISSION_OVER_QUERY, gameId)
+    result, err := db.Query(IS_CURRENT_MISSION_OVER_QUERY, gameId)
     if err != nil {
-        return false, err
+        return false, "", err
     }
     
     if result.Next() {
         if err := result.Scan(&isMissionOver); err != nil {
-            return false, err
+            return false, "", err
         }
     }
     
-    return isMissionOver, nil
+    if isMissionOver {
+        var numFails int
+        var missionNum int
+        var numPlayers int
+    
+        result, err = db.Query(NUM_FAILS_IN_CURRENT_MISSION_QUERY, gameId)
+        if err != nil {
+            return false, "", err
+        }
+        
+        if result.Next() {
+            if err := result.Scan(&numFails); err != nil {
+                return false, "", err
+            }
+        }
+        
+        result, err = db.Query(CURRENT_MISSION_NUM_QUERY, gameId)
+        if err != nil {
+            return false, "", err
+        }
+        
+        if result.Next() {
+            if err := result.Scan(&missionNum); err != nil {
+                return false, "", err
+            }
+        }
+        
+        result, err = db.Query(NUM_PLAYERS_QUERY, gameId)
+        if err != nil {
+            return false, "", err
+        }
+        
+        if result.Next() {
+            if err := result.Scan(&numPlayers); err != nil {
+                return false, "", err
+            }
+        }
+        
+        // The special mission is when it's the fourth mission
+        // and there are greater than or equal to 7 players.
+        // This mission requires at least 2 fails for the mission
+        // to fail.
+        specialMission := missionNum == 4 && numPlayers >= 7
+        
+        if (specialMission && numFails >= 2) || (!specialMission && numFails >= 1) {
+            missionWinner = SPY_RESULT_STRING
+        } else {
+            missionWinner = RESISTANCE_RESULT_STRING
+        }
+    }
+    
+    return isMissionOver, missionWinner, nil
 }
 
-// isGameOver determines if the given game is over.
+// IsGameOver determines if the given game is over.
 // the game is over if there are 5 of the same mission numbers
 // in CANCELED status or if either the RESISTANCE or SPY has
 // at least 3 mission wins
-func isGameOver(gameId int) (bool, error) {
+func IsGameOver(gameId int) (bool, string, error) {
+    db, err := utils.ConnectToDB()
+    if err != nil {
+        return false, "", err
+    }
     
+    result, err := db.Query(RESISTANCE_WINS_QUERY, gameId)
+    if err != nil {
+        return false, "", err
+    }
+    
+    var numResistanceWins int
+    if result.Next() {
+        if err := result.Scan(&numResistanceWins); err != nil {
+            return false, "", err
+        } else {
+            if numResistanceWins >= 3 {
+                return true, RESISTANCE_RESULT_STRING, nil
+            }
+        }
+    }
+    
+    result, err = db.Query(SPY_WINS_QUERY, gameId)
+    if err != nil {
+        return false, "", err
+    }
+    
+    var numSpyWins int
+    if result.Next() {
+        if err := result.Scan(&numSpyWins); err != nil {
+            return false, "", err
+        } else {
+            if numSpyWins >= 3 {
+                return true, SPY_RESULT_STRING, nil
+            }
+        }
+    }
+    
+    result, err = db.Query(CANCELED_CURRENT_MISSIONS_QUERY, gameId, gameId)
+    if err != nil {
+        return false, "", err
+    }
+    
+    var numCanceled int
+    if result.Next() {
+        if err := result.Scan(&numCanceled); err != nil {
+            return false, "", err
+        } else {
+            if numCanceled >= 5 {
+                return true, SPY_RESULT_STRING, nil
+            }
+        }
+    }
+    
+    return false, "", nil
 }
