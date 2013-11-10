@@ -13,8 +13,6 @@ function handleMessage(message) {
   
   handleAnyErrors(object);
   
-  alert(object.message);
-  
   switch(object.message) {
     case "playerConnectSuccessful":
       handlePlayerConnectSuccessful(object);
@@ -51,7 +49,7 @@ function handleMessage(message) {
       break;
     default:
       // used for debugging
-      alert("Unknown message: " + object.message);
+      // alert("Unknown message: " + object.message);
   }
 }
 
@@ -79,6 +77,8 @@ function handlePlayerConnectSuccessful(parsedMessage) {
   } else {
     actionDiv.appendChild(document.createTextNode("Waiting for host to start game..."));
   }
+  
+  sendResistanceMessage("getPlayers");
 }
 
 function handlePlayers(parsedMessage) {

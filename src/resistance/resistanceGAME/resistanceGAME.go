@@ -32,6 +32,7 @@ const (
     // messages received from the frontend
     PLAYER_CONNECT_MESSAGE = "playerConnect"
     PLAYER_DISCONNECT_MESSAGE = "playerDisconnect"
+    GET_PLAYERS_MESSAGE = "getPlayers"
     START_GAME_MESSAGE = "startGame"
     QUERY_ROLE_MESSAGE = "queryRole"
     QUERY_LEADER_MESSAGE = "queryLeader"
@@ -58,30 +59,14 @@ const (
 // first connects by loading the game page.
 func handlePlayerConnect(message map[string]interface{}, connectingPlayer *users.User, pubSocket *zmq.Socket) map[string]interface{} {
     var returnMessage = make(map[string]interface{})
-    utils.LogMessage(connectingPlayer.Username + " has sent a message!", utils.RESISTANCE_LOG_PATH)
     // TODO: handle case where game_id_key doesnt exist
     gameId, err := strconv.Atoi(message[GAME_ID_KEY].(string))
     if err == nil {
         // Add the user to the players for this game
         game.AddPlayer(gameId, connectingPlayer.UserId)
-    
-        // Retrive all users for this game.
-        var usernames = make([]string, 0)
-        users, err := game.GetPlayers(gameId)
-        if err == nil {
-            for _, user := range users {
-                usernames = append(usernames, user.Username)
-            }
-        }
-        // TODO: error check here
-        utils.LogMessage(strconv.Itoa(len(usernames)), utils.RESISTANCE_LOG_PATH)
         
-        // Build up players message.
-        var playersMessage = make(map[string]interface{})
-        playersMessage[MESSAGE_KEY] = PLAYERS_MESSAGE
-        playersMessage[PLAYERS_KEY] = usernames
-        playersMessage[GAME_ID_KEY] = gameId
-    
+        // Send a message to everyone about the new players
+        playersMessage := getPlayersMessage(gameId)
         sendMessageToSubscribers(gameId, playersMessage, pubSocket)
         
         // Also send a message back through the proxy to start a subscriber
@@ -107,6 +92,19 @@ func handlePlayerConnect(message map[string]interface{}, connectingPlayer *users
 func handlePlayerDisconnect(message map[string]interface{}) map[string]interface{} {
     var returnMessage = make(map[string]interface{})
     // TODO: implement
+    return returnMessage
+}
+
+// handleGetPlayers handles the message that is sent when the
+// frontend needs an update on the players
+func handleGetPlayers(message map[string]interface{}) map[string]interface{} {
+    var returnMessage = make(map[string]interface{})
+    
+    gameId, err := strconv.Atoi(message[GAME_ID_KEY].(string))
+    if err == nil {
+        returnMessage = getPlayersMessage(gameId)
+    }
+    
     return returnMessage
 }
 
@@ -379,6 +377,28 @@ func handleMissionOutcome(message map[string]interface{}, connectingPlayer *user
     return returnMessage
 }
 
+// getPlayersMessage builds up the message to update the list of
+// current players
+func getPlayersMessage(gameId int) map[string]interface{} {
+    var usernames = make([]string, 0)
+    users, err := game.GetPlayers(gameId)
+    if err == nil {
+        for _, user := range users {
+            usernames = append(usernames, user.Username)
+        }
+    }
+    // TODO: error check here
+    utils.LogMessage(strconv.Itoa(len(usernames)), utils.RESISTANCE_LOG_PATH)
+        
+    // Build up players message.
+    var playersMessage = make(map[string]interface{})
+    playersMessage[MESSAGE_KEY] = PLAYERS_MESSAGE
+    playersMessage[PLAYERS_KEY] = usernames
+    playersMessage[GAME_ID_KEY] = gameId
+    
+    return playersMessage
+}
+
 // parseMessage parses every message that comes in and puts it into a Go struct.
 func parseMessage(msg []byte) map[string]interface{} {
     var parsedMessage = make(map[string]interface{})
@@ -448,6 +468,8 @@ func main() {
                 returnMessage = handlePlayerConnect(parsedMessage, user, pubSocket)
             case parsedMessage[MESSAGE_KEY] == PLAYER_DISCONNECT_MESSAGE:
                 returnMessage = handlePlayerDisconnect(parsedMessage)
+            case parsedMessage[MESSAGE_KEY] == GET_PLAYERS_MESSAGE:
+                returnMessage = handleGetPlayers(parsedMessage)
             case parsedMessage[MESSAGE_KEY] == START_GAME_MESSAGE:
                 returnMessage = handleStartGame(parsedMessage, user, pubSocket)
             case parsedMessage[MESSAGE_KEY] == QUERY_ROLE_MESSAGE:
