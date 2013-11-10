@@ -26,9 +26,10 @@ const (
     GET_GAME_NAME_QUERY = "select title from games where game_id = ?"
     ADD_PLAYER_QUERY = "insert into players (`game_id`, `user_id`) values (?, ?)"
     GET_PLAYERS_QUERY = "select user_id from players where game_id = ? order by join_date"
+    IS_PLAYER_IN_GAME_QUERY = "select count(*) from players where game_id = ? and user_id = ?"
     GET_GAME_STATUS_QUERY = "select status from games where game_id = ?"
     SET_GAME_STATUS_QUERY = "update games set status = ? where game_id = ?"
-    NUM_PLAYERS_QUERY = "select user_id from players where game_id = ?"
+    NUM_PLAYERS_QUERY = "select count(*) from players where game_id = ?"
     SET_PLAYER_ROLE_QUERY = "update players set role = ? where user_id = ? and game_id = ?"
     PLAYER_ROLE_QUERY = "select role from players where user_id = ? and game_id = ?"
     MISSION_LEADER_QUERY = "select leader_id from missions where mission_id = (" + CURRENT_MISSION_ID_QUERY + ")"
@@ -123,9 +124,35 @@ func ValidateGameRequest(gameIdString string, user *users.User) (int, error) {
                 case gameStatus == GAME_STATUS_DONE:
                     return -1, errors.New("Cannot join a game that is already done.")
                 case gameStatus == GAME_STATUS_IN_PROGRESS:
-                    // TODO: error check for joining games in progress (already exist in players list)
+                    // make sure that the player is an actual player of the game
+                    var isPlayer bool
+                    results, err = db.Query(IS_PLAYER_IN_GAME_QUERY, gameId, user.UserId)
+                    if err != nil {
+                        return -1, err
+                    }
+                    if results.Next() {
+                        if err := results.Scan(&isPlayer); err == nil {
+                            if !isPlayer {
+                                return -1, errors.New("Cannot join a game that is in progress")
+                            }
+                        }
+                    }
                 case gameStatus == GAME_STATUS_LOBBY:
-                    //TODO: error check for joining games in lobby (no more than 10 players)
+                    // make sure we're not going over the limit of 10 players
+                    // we are assuming the player is no longer in the list of players
+                    // if the player leaves the game while in the lobby status
+                    var numPlayers int
+                    results, err = db.Query(NUM_PLAYERS_QUERY, gameId)
+                    if err != nil {
+                        return -1, err
+                    }
+                    if results.Next() {
+                        if err := results.Scan(&numPlayers); err == nil {
+                            if numPlayers >= 10 {
+                                return -1, errors.New("Game has reach maximum capacity")
+                            }
+                        }
+                    }
             }
         } else {
             return -1, err
