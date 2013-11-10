@@ -324,8 +324,10 @@ func handleMissionOutcome(message map[string]interface{}, connectingPlayer *user
                 if err == nil {
                     if isMissionOver {
                         // it is, so set the mission result
-                        _ = game.SetMissionResult(gameId, missionResult)
-                        // TODO error checking
+                        err = game.SetMissionResult(gameId, missionResult)
+                        if err != nil {
+                            utils.LogMessage("Error while setting mission result " + err.Error(), utils.RESISTANCE_LOG_PATH)
+                        }
                         
                         // now check if the game is over
                         isGameOver, winner, err := game.IsGameOver(gameId)
@@ -337,6 +339,12 @@ func handleMissionOutcome(message map[string]interface{}, connectingPlayer *user
                                 gameOverMessage[GAME_WINNER_KEY] = winner
                                 sendMessageToSubscribers(gameId, gameOverMessage, pubSocket)
                             } else {
+                                err = game.StartNextMission(gameId)
+                                if err != nil {
+                                    utils.LogMessage("error starting mission" + err.Error(), utils.RESISTANCE_LOG_PATH)
+                                }
+                                // TODO error checking
+                                
                                 // send mission preparation message for next mission
                                 var missionPreparationMessage = make(map[string]interface{})
                                 missionPreparationMessage[MESSAGE_KEY] = MISSION_PREPARATION_MESSAGE

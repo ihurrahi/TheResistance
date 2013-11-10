@@ -39,7 +39,7 @@ const (
     ADD_VOTE_QUERY = "insert into votes (`mission_id`, `user_id`, `vote`) values (?, ?, ?)"
     ALL_VOTES_IN_QUERY = "select (select count(*) from votes where mission_id = ?) >= (select count(*) from players join missions on players.game_id = missions.game_id where mission_id = ?)"
     TEAM_APPROVED_QUERY = "select sum(vote) > sum(vote = 0) from votes where mission_id = ?"
-    SET_MISSION_RESULT_QUERY = "update missions set result = ? where mission_id = (" + CURRENT_MISSION_ID_QUERY + ")"
+    SET_MISSION_RESULT_QUERY = "update missions set result = ? where mission_id in (select mission_id from (" + CURRENT_MISSION_ID_QUERY + ") as missionIdToUpdate)"
     GET_CURRENT_MISSION_RESULT_QUERY = "select result from missions where mission_id = (" + CURRENT_MISSION_ID_QUERY + ")"
     IS_USER_ON_MISSION_QUERY = "select count(*) from teams where mission_id = (" + CURRENT_MISSION_ID_QUERY + ") and user_id = ?"
     ADD_MISSION_OUTCOME_QUERY = "update teams set outcome = ? where mission_id = (" + CURRENT_MISSION_ID_QUERY + ") and user_id = ?"
