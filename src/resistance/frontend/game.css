@@ -1,3 +1,7 @@
+* {
+  font-family: helvetica;
+}
+
 #gameInformation {
   position: relative;
   width: 539px;
