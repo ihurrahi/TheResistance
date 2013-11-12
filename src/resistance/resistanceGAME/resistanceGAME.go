@@ -28,6 +28,7 @@ const (
     IS_ON_MISSION_KEY = "isOnMission"
     OUTCOME_KEY = "outcome"
     GAME_WINNER_KEY = "winner"
+    MISSIONS_KEY = "missions"
     
     // messages received from the frontend
     PLAYER_CONNECT_MESSAGE = "playerConnect"
@@ -53,6 +54,7 @@ const (
     MISSION_STARTED_MESSAGE = "missionStarted"
     QUERY_IS_ON_MISSION_RESULT_MESSAGE = "queryIsOnMissionResult"
     GAME_OVER_MESSAGE = "gameOver"
+    MISSIONS_MESSAGE = "missions"
 )
 
 // handlePlayerConnect handles the message that is sent when a player
@@ -130,6 +132,9 @@ func handleStartGame(message map[string]interface{}, connectingPlayer *users.Use
             utils.LogMessage("error starting mission" + err.Error(), utils.RESISTANCE_LOG_PATH)
         }
         // TODO: error check here
+        
+        // Send a message to everyone to update their missions view
+        sendMissionsMessage(gameId, pubSocket)
         
         // Sends the message that a mission is going to start
         var missionPreparationMessage = make(map[string]interface{})
@@ -232,6 +237,8 @@ func handleStartMission(message map[string]interface{}, connectingPlayer *users.
             teamApprovalMessage[MESSAGE_KEY] = TEAM_APPROVAL_MESSAGE
             teamApprovalMessage[TEAMS_KEY] = team
             sendMessageToSubscribers(gameId, teamApprovalMessage, pubSocket)
+            
+            sendMissionsMessage(gameId, pubSocket)
         } else {
             utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
         }
@@ -286,6 +293,10 @@ func handleApproveTeam(message map[string]interface{}, connectingPlayer *users.U
                     missionPreparationMessage[MESSAGE_KEY] = MISSION_PREPARATION_MESSAGE
                     sendMessageToSubscribers(gameId, missionPreparationMessage, pubSocket)
                 }
+                
+                // once all votes are in, if either the mission was approved or not
+                // there is an update to the list of missions so we should send it out.
+                sendMissionsMessage(gameId, pubSocket)
             }
             // TODO error checking
         }
@@ -359,6 +370,8 @@ func handleMissionOutcome(message map[string]interface{}, connectingPlayer *user
                                 var missionPreparationMessage = make(map[string]interface{})
                                 missionPreparationMessage[MESSAGE_KEY] = MISSION_PREPARATION_MESSAGE
                                 sendMessageToSubscribers(gameId, missionPreparationMessage, pubSocket)
+                                
+                                sendMissionsMessage(gameId, pubSocket)
                             }
                         }
                         // TODO error checking
@@ -424,6 +437,18 @@ func getUser(parsedMessage map[string]interface{}) *users.User {
     }
     
     return user
+}
+
+// sendMissionsMessage sends the update mission info message to all subscribers
+// to the given game id
+func sendMissionsMessage(gameId int, pubSocket *zmq.Socket) {
+    var missionInfoMessage = make(map[string]interface{})
+    missionInfoMessage[MESSAGE_KEY] = MISSIONS_MESSAGE
+    missionInfo, err := game.GetMissionInfo(gameId)
+    if err == nil {
+        missionInfoMessage[MISSIONS_KEY] = missionInfo
+    }
+    sendMessageToSubscribers(gameId, missionInfoMessage, pubSocket)
 }
 
 // sendMessageToSubscribers is a helper method to send the given message to the given

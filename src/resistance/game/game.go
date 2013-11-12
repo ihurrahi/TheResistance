@@ -50,6 +50,7 @@ const (
     RESISTANCE_WINS_QUERY = "select count(*) from missions where result = '" + RESISTANCE_RESULT_STRING + "' and game_id = ?"
     SPY_WINS_QUERY = "select count(*) from missions where result = '" + SPY_RESULT_STRING + "' and game_id = ?"
     CANCELED_CURRENT_MISSIONS_QUERY = "select count(*) from missions where mission_num = (" + CURRENT_MISSION_NUM_QUERY + ") and result = '" + CANCELED_RESULT_STRING + "' and game_id = ?"
+    GET_MISSION_INFO = "select mission_num, leader_id, result from missions where game_id = ?"
 )
 
 // numPlayersToNumSpies gives you how many spies there should be in a game
@@ -850,4 +851,37 @@ func IsGameOver(gameId int) (bool, string, error) {
     }
     
     return false, "", nil
+}
+
+// GetMissionInfo gets all the mission information for the given game id.
+func GetMissionInfo(gameId int) ([]map[string]interface{}, error) {
+    var returnValue = make([]map[string]interface{}, 0)
+
+    db, err := utils.ConnectToDB()
+    if err != nil {
+        return returnValue, err
+    }
+    
+    result, err := db.Query(GET_MISSION_INFO, gameId)
+    if err != nil {
+        return returnValue, err
+    }
+    
+    var missionNum int
+    var leaderId int
+    var missionResult string
+    for result.Next() {
+        if err := result.Scan(&missionNum, &leaderId, &missionResult); err == nil {
+            var singleMission = make(map[string]interface{})
+            singleMission["missionNum"] = missionNum
+            singleMission["missionLeader"] = users.LookupUserById(leaderId)
+            singleMission["missionResult"] = missionResult
+            
+            returnValue = append(returnValue, singleMission)
+        } else {
+            utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
+        }
+    }
+    
+    return returnValue, nil
 }
