@@ -47,6 +47,9 @@ function handleMessage(message) {
     case "gameOver":
       handleGameOver(object);
       break;
+    case "missions":
+      handleMissions(object);
+      break;
     default:
       // used for debugging
       // alert("Unknown message: " + object.message);
@@ -272,6 +275,41 @@ function handleQueryIsOnMissionResult(parsedMessage) {
 function handleGameOver(parsedMessage) {
   alert("Game Over. The " + parsedMessage.winner + " team wins!");
   window.location.assign("/home.html");
+}
+
+function handleMissions(parsedMessage) {
+  var missionInfoDiv = document.getElementById("missionInfo");
+  var missionInfoTable = document.getElementById("missionTable");
+  if (missionInfoTable != null) {
+      missionInfoDiv.removeChild(missionInfoTable);
+  }
+  
+  var table = document.createElement("table");
+  table.id = "missionTable";
+  
+  // Create headers
+  var header = table.createTHead();
+  var row = header.insertRow(0);
+  var cell1 = row.insertCell(0);
+  var cell2 = row.insertCell(1);
+  var cell3 = row.insertCell(2);
+  cell1.innerHTML = "Mission #";
+  cell2.innerHTML = "Leader";
+  cell3.innerHTML = "Result";
+  
+  for (var i in parsedMessage.missions) {
+    var info = parsedMessage.missions[i];
+    var row = table.insertRow(-1);
+    var cell1 = row.insertCell(0);
+    var cell2 = row.insertCell(1);
+    var cell3 = row.insertCell(2);
+    
+    cell1.innerHTML = info.missionNum;
+    cell2.innerHTML = info.missionLeader.Username;
+    cell3.innerHTML = info.missionResult;
+  }
+  
+  missionInfoDiv.appendChild(table);
 }
 
 function addBreak(divElement) {
