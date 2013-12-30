@@ -9,10 +9,13 @@ While playing this game without the actual board game, I noticed it was hard to 
 Dependencies
 ------------
 * Go
-* Go-MySQL (github.com/go-sql-driver/mysql)
-* Go-Socket.IO (github.com/justinfx/go-socket.io)
- * Go.net/websocket (code.google.com/p/go.net)
-* ZeroMQ (github.com/alecthomas/gozmq)
+* Go-MySQL (go get github.com/go-sql-driver/mysql)
+ * MySQL (4.1 or higher, see github.com/go-sql-driver/mysql, tested with MySQL 5.1)
+* Go-Socket.IO (go get github.com/justinfx/go-socket.io)
+ * Go.net/websocket (go get code.google.com/p/go.net)
+ * Socket.IO client javascript (https://github.com/LearnBoost/socket.io-client/blob/804c4e281e67b0a74a41a01f34103461c5788612/socket.io.js)
+* GoZMQ (go get github.com/alecthomas/gozmq)
+ * ZeroMQ (2.1.x, 2.2.x, or 3.x, see github.com/alecthomas/gozmq, tested with ZeroMQ 2.2.0)
 
 Running
 -----------

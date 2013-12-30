@@ -106,7 +106,6 @@ func main() {
 
     // Start server
     mux := sio.ServeMux()
-    mux.Handle("/", http.FileServer(http.Dir("src/github.com/socket.io-client")))
 
     if err := http.ListenAndServe(":" + utils.WSP_PORT, mux); err != nil {
         log.Fatal("ListenAndServe:", err)
