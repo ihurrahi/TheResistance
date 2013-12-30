@@ -8,7 +8,7 @@ While playing this game without the actual board game, I noticed it was hard to 
 
 Dependencies
 ------------
-* Go
+* Go (tested with Go 1.2)
 * Go-MySQL (go get github.com/go-sql-driver/mysql)
  * MySQL (4.1 or higher, see github.com/go-sql-driver/mysql, tested with MySQL 5.1)
 * Go-Socket.IO (go get github.com/justinfx/go-socket.io)
