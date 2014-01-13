@@ -151,14 +151,14 @@ func handleQueryRole(currentGame *game.Game, player *users.User) map[string]inte
 func handleQueryLeader(currentGame *game.Game, player *users.User) map[string]interface{} {
 	var returnMessage = make(map[string]interface{})
 
-	isLeader := currentGame.IsUserCurrentMissionLeader(player)
+	isLeader := currentGame.GetCurrentMission().IsUserCurrentMissionLeader(player)
 
 	returnMessage[MESSAGE_KEY] = QUERY_LEADER_RESULT_MESSAGE
 	returnMessage[IS_LEADER_KEY] = isLeader
 
 	if isLeader {
 		returnMessage[PLAYERS_KEY] = getPlayerUsernames(currentGame)
-		returnMessage[TEAM_SIZE_KEY] = currentGame.GetCurrentMissionTeamSize()
+		returnMessage[TEAM_SIZE_KEY] = currentGame.GetCurrentMission().GetCurrentMissionTeamSize()
 	}
 
 	return returnMessage
@@ -194,7 +194,7 @@ func handleStartMission(message map[string]interface{}, currentGame *game.Game, 
 	}
 
 	gameId := currentGame.GameId
-	currentGame.CreateTeam(teamUsers)
+	currentGame.GetCurrentMission().CreateTeam(teamUsers)
 
 	var teamApprovalMessage = make(map[string]interface{})
 	teamApprovalMessage[MESSAGE_KEY] = TEAM_APPROVAL_MESSAGE
@@ -231,7 +231,7 @@ func handleApproveTeam(message map[string]interface{}, currentGame *game.Game, c
 				missionApprovedMessage[MESSAGE_KEY] = MISSION_STARTED_MESSAGE
 				sendMessageToSubscribers(gameId, missionApprovedMessage, pubSocket)
 			} else {
-				currentGame.GetCurrentMission().CancelMission()
+				currentGame.GetCurrentMission().EndMission(game.RESULT_NONE)
 
 				_ = game.NewMission(currentGame)
 
@@ -255,7 +255,7 @@ func handleApproveTeam(message map[string]interface{}, currentGame *game.Game, c
 func handleQueryIsOnMission(currentGame *game.Game, connectingPlayer *users.User) map[string]interface{} {
 	var returnMessage = make(map[string]interface{})
 
-	isOnMission := currentGame.IsUserOnCurrentMission(connectingPlayer)
+	isOnMission := currentGame.GetCurrentMission().IsUserOnCurrentMission(connectingPlayer)
 
 	returnMessage[MESSAGE_KEY] = QUERY_IS_ON_MISSION_RESULT_MESSAGE
 	returnMessage[IS_ON_MISSION_KEY] = isOnMission
@@ -275,10 +275,10 @@ func handleMissionOutcome(message map[string]interface{}, currentGame *game.Game
 		currentGame.GetCurrentMission().AddOutcome(connectingPlayer, missionOutcome)
 
 		// check if the current mission is over
-		isMissionOver := currentGame.GetCurrentMission().IsMissionOver()
+		isMissionOver, result := currentGame.GetCurrentMission().IsMissionOver()
 		if isMissionOver {
 			// it is, so set the mission result
-			currentGame.EndMission()
+			currentGame.GetCurrentMission().EndMission(result)
 
 			// now check if the game is over
 			isGameOver, winner := currentGame.IsGameOver()

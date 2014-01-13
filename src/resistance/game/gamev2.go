@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math/rand"
 	"resistance/users"
+	"resistance/utils"
 	"strconv"
 	"time"
 )
@@ -62,22 +63,30 @@ func ReadGame(gameId int) *Game {
 	return nil
 }
 
+// AddPlayer adds the given user as a player to the game.
 func (game *Game) AddPlayer(user *users.User) {
 	newPlayer := NewPlayer(game, user)
 	game.Players = append(game.Players, newPlayer)
 }
 
-func (game *Game) CreateTeam(team []*users.User) {
-	// TODO: implement
-}
-
-func (game *Game) EndMission() {
-	// TODO: implement
-}
-
+// IsGameOver determines whether the game is over by looking at all
+// the mission results. Also returns a string of who won if the game was over.
 func (game *Game) IsGameOver() (bool, string) {
-	// TODO: implement
-	return false, "no one"
+	resistanceWins := 0
+	spyWins := 0
+	for _, mission := range game.Missions {
+		if mission.Result == RESULT_RESISTANCE {
+			resistanceWins += 1
+		} else if mission.Result == RESULT_SPY {
+			spyWins += 1
+		}
+	}
+	if resistanceWins >= 3 {
+		return true, "Resistance"
+	} else if spyWins >= 3 {
+		return true, "Spy"
+	}
+	return false, ""
 }
 
 // GetCurrentMission returns the most current mission. This should
@@ -151,33 +160,38 @@ func selectSpies(numPlayers int, numSpies int) map[int]bool {
 	return spies
 }
 
-func (game *Game) IsUserCurrentMissionLeader(currentUser *users.User) bool {
-	// TODO: move to mission struct
-	currentMission := game.GetCurrentMission()
-	return currentMission.Leader.UserId == currentUser.UserId
-}
-
-func (game *Game) GetCurrentMissionTeamSize() int {
-	// TODO: move to mission struct
-	currentMission := game.GetCurrentMission()
-	return numPlayersOnTeam[len(game.Players)][currentMission.MissionNum]
-}
-
-func (game *Game) IsUserOnCurrentMission(currentUser *users.User) bool {
-	// TODO: move to mission struct
-	currentMission := game.GetCurrentMission()
-	if _, ok := currentMission.Team[currentUser]; ok {
-		return true
-	}
-	return false
-}
-
+// GetNextLeader gets the next leader in line to lead the next mission.
 func (game *Game) GetNextLeader(currentLeader *users.User) *users.User {
-	// TODO: implement
-	return nil
+	var nextLeader *users.User
+
+	// The very first leader. Just pick someone at random.
+	if currentLeader == nil {
+		rand.Seed(time.Now().UnixNano())
+		randIndex := rand.Intn(len(game.Players))
+		nextLeader = game.Players[randIndex].User
+	} else {
+		for index, leader := range game.Players {
+			if leader.User.UserId == currentLeader.UserId {
+				// We have found our leader, get the next one in line.
+				nextIndex := (index + 1) % len(game.Players)
+				nextLeader = game.Players[nextIndex].User
+			}
+		}
+		if nextLeader == nil {
+			// This should never happen!
+			utils.LogMessage("Could not find the next leader after "+currentLeader.Username, utils.RESISTANCE_LOG_PATH)
+			nextLeader = game.Players[0].User
+		}
+	}
+	return nextLeader
 }
 
-func (game *Game) GetMissionInfo() map[string]interface{} {
-	// TODO: implement
-	return make(map[string]interface{})
+// GetMissionInfo gets all the mission information from this game to be
+// displayed to the user.
+func (game *Game) GetMissionInfo() []map[string]interface{} {
+	missionInfo := make([]map[string]interface{}, len(game.Missions))
+	for index, mission := range game.Missions {
+		missionInfo[index] = mission.GetMissionInfo()
+	}
+	return missionInfo
 }

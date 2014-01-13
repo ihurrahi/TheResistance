@@ -57,6 +57,16 @@ func NewMission(currentGame *Game) *Mission {
 	return newMission
 }
 
+// CreateTeam creates the team for this mission with the
+// given list of users
+func (mission *Mission) CreateTeam(team []*users.User) {
+	for _, user := range team {
+		mission.Team[user] = OUTCOME_NONE
+	}
+}
+
+// AddVote adds the vote of approval for the chosen team from a given
+// user to the mission.
 func (mission *Mission) AddVote(user *users.User, vote bool) {
 	if vote {
 		mission.Votes[user] = VOTE_ALLOW
@@ -84,6 +94,8 @@ func (mission *Mission) IsTeamApproved() bool {
 	return (2 * approvalVotes) > len(mission.Votes)
 }
 
+// AddOutcome adds the outcome of each user who went on the mission
+// to the mission.
 func (mission *Mission) AddOutcome(user *users.User, outcome bool) {
 	if outcome {
 		mission.Team[user] = OUTCOME_PASS
@@ -94,16 +106,67 @@ func (mission *Mission) AddOutcome(user *users.User, outcome bool) {
 
 // IsMissionOver returns whether this mission is over by
 // making sure everyone who went on the mission has given
-// a PASS or FAIL.
-func (mission *Mission) IsMissionOver() bool {
+// a PASS or FAIL. Also returns who won if it is over
+func (mission *Mission) IsMissionOver() (bool, int) {
+	numFails := 0
 	for _, outcome := range mission.Team {
 		if outcome == OUTCOME_NONE {
-			return false
+			return false, RESULT_NONE
+		} else if outcome == OUTCOME_FAIL {
+			numFails += 1
 		}
 	}
-	return true
+
+	failsRequired := 1
+	if mission.IsRequiresTwoFails() {
+		failsRequired = 2
+	}
+
+	if numFails >= failsRequired {
+		return true, RESULT_SPY
+	} else {
+		return true, RESULT_RESISTANCE
+	}
 }
 
-func (mission *Mission) CancelMission() {
-	// TODO: implement
+// IsRequiresTwoFails returns whether this mission requires two fails to
+// fail the mission.
+func (mission *Mission) IsRequiresTwoFails() bool {
+	return len(mission.Game.Players) >= 7 && mission.MissionNum == 4
+}
+
+// EndMission ends the mission by setting the result of the mission.
+func (mission *Mission) EndMission(result int) {
+	mission.Result = result
+}
+
+// GetMissionInfo constructs the mission information of this mission to
+// be displayed on the frontend
+func (mission *Mission) GetMissionInfo() map[string]interface{} {
+	missionInfo := make(map[string]interface{})
+	missionInfo["missionNum"] = mission.MissionNum
+	missionInfo["missionLeader"] = mission.Leader
+	missionInfo["missionResult"] = mission.Result
+	return make(map[string]interface{})
+}
+
+// IsUserCurrentMissionLeader returns whether the given user is the current
+// mission's leader or not.
+func (mission *Mission) IsUserCurrentMissionLeader(currentUser *users.User) bool {
+	return mission.Leader.UserId == currentUser.UserId
+}
+
+// GetCurrentMissionTeamSize returns the how many players need to go on this
+// mission.
+func (mission *Mission) GetCurrentMissionTeamSize() int {
+	return numPlayersOnTeam[len(mission.Game.Players)][mission.MissionNum]
+}
+
+// IsUserOnCurrentMission returns whether the given user is going on this
+// mission.
+func (mission *Mission) IsUserOnCurrentMission(currentUser *users.User) bool {
+	if _, ok := mission.Team[currentUser]; ok {
+		return true
+	}
+	return false
 }
