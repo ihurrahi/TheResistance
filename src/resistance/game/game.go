@@ -1,887 +1,887 @@
 package game
 
-import (
-    "errors"
-    "strconv"
-    "net/http"
-    "math/rand"
-    "time"
-    "resistance/utils"
-    "resistance/users"
-)
+//import (
+//    "errors"
+//    "strconv"
+//    "net/http"
+//    "math/rand"
+//    "time"
+//    "resistance/utils"
+//    "resistance/users"
+//)
 
-const (
-    GAME_STATUS_LOBBY = "LOBBY"
-    GAME_STATUS_IN_PROGRESS = "IN_PROGRESS"
-    GAME_STATUS_DONE = "DONE"
-    TITLE_KEY = "title"
-    HOST_ID_KEY = "host"
-    RESISTANCE_ROLE = "R"
-    SPY_ROLE = "S"
-    RESISTANCE_RESULT_STRING = "RESISTANCE"
-    SPY_RESULT_STRING = "SPY"
-    CANCELED_RESULT_STRING = "CANCELED"
-    
-    CREATE_GAME_QUERY = "insert into games (`title`, `host_id`, `status`) values (?, ?, \"" + GAME_STATUS_LOBBY + "\")"
-    GET_GAME_NAME_QUERY = "select title from games where game_id = ?"
-    IS_USER_HOST_QUERY = "select host_id = ? from games where game_id = ?"
-    ADD_PLAYER_QUERY = "insert into players (`game_id`, `user_id`) values (?, ?)"
-    GET_PLAYERS_QUERY = "select user_id from players where game_id = ? order by join_date"
-    IS_PLAYER_IN_GAME_QUERY = "select count(*) from players where game_id = ? and user_id = ?"
-    GET_GAME_STATUS_QUERY = "select status from games where game_id = ?"
-    SET_GAME_STATUS_QUERY = "update games set status = ? where game_id = ?"
-    NUM_PLAYERS_QUERY = "select count(*) from players where game_id = ?"
-    SET_PLAYER_ROLE_QUERY = "update players set role = ? where user_id = ? and game_id = ?"
-    PLAYER_ROLE_QUERY = "select role from players where user_id = ? and game_id = ?"
-    MISSION_LEADER_QUERY = "select leader_id from missions where mission_id = (" + CURRENT_MISSION_ID_QUERY + ")"
-    CURRENT_MISSION_NUM_QUERY = "select ifnull(max(mission_num),0) from missions where game_id = ?"
-    CREATE_MISSION_QUERY = "insert into missions (`game_id`, `mission_num`, `leader_id`) values (?, ?, ?)"
-    CREATE_TEAM_MEMBER_QUERY = "insert into teams (`mission_id`, `user_id`) values (?, ?)"
-    CURRENT_MISSION_ID_QUERY = "select mission_id from missions where game_id = ? order by mission_id desc limit 1"
-    ADD_VOTE_QUERY = "insert into votes (`mission_id`, `user_id`, `vote`) values (?, ?, ?)"
-    ALL_VOTES_IN_QUERY = "select (select count(*) from votes where mission_id = ?) >= (select count(*) from players join missions on players.game_id = missions.game_id where mission_id = ?)"
-    TEAM_APPROVED_QUERY = "select sum(vote) > sum(vote = 0) from votes where mission_id = ?"
-    SET_MISSION_RESULT_QUERY = "update missions set result = ? where mission_id in (select mission_id from (" + CURRENT_MISSION_ID_QUERY + ") as missionIdToUpdate)"
-    GET_CURRENT_MISSION_RESULT_QUERY = "select result from missions where mission_id = (" + CURRENT_MISSION_ID_QUERY + ")"
-    IS_USER_ON_MISSION_QUERY = "select count(*) from teams where mission_id = (" + CURRENT_MISSION_ID_QUERY + ") and user_id = ?"
-    ADD_MISSION_OUTCOME_QUERY = "update teams set outcome = ? where mission_id = (" + CURRENT_MISSION_ID_QUERY + ") and user_id = ?"
-    IS_CURRENT_MISSION_OVER_QUERY = "select count(*) = 0 from teams where mission_id = (" + CURRENT_MISSION_ID_QUERY + ") and outcome is null"
-    NUM_FAILS_IN_CURRENT_MISSION_QUERY = "select count(*) from teams where mission_id = (" + CURRENT_MISSION_ID_QUERY + ") and outcome = b'0'"
-    RESISTANCE_WINS_QUERY = "select count(*) from missions where result = '" + RESISTANCE_RESULT_STRING + "' and game_id = ?"
-    SPY_WINS_QUERY = "select count(*) from missions where result = '" + SPY_RESULT_STRING + "' and game_id = ?"
-    CANCELED_CURRENT_MISSIONS_QUERY = "select count(*) from missions where mission_num = (" + CURRENT_MISSION_NUM_QUERY + ") and result = '" + CANCELED_RESULT_STRING + "' and game_id = ?"
-    GET_MISSION_INFO = "select mission_num, leader_id, result from missions where game_id = ?"
-)
+//const (
+//    GAME_STATUS_LOBBY = "LOBBY"
+//    GAME_STATUS_IN_PROGRESS = "IN_PROGRESS"
+//    GAME_STATUS_DONE = "DONE"
+//    TITLE_KEY = "title"
+//    HOST_ID_KEY = "host"
+//    RESISTANCE_ROLE = "R"
+//    SPY_ROLE = "S"
+//    RESISTANCE_RESULT_STRING = "RESISTANCE"
+//    SPY_RESULT_STRING = "SPY"
+//    CANCELED_RESULT_STRING = "CANCELED"
 
-// numPlayersToNumSpies gives you how many spies there should be in a game
-// for the given the number of players
-var numPlayersToNumSpies = map[int]int {
-    5:2,
-    6:2,
-    7:3,
-    8:3,
-    9:3,
-    10:4}
+//    CREATE_GAME_QUERY = "insert into games (`title`, `host_id`, `status`) values (?, ?, \"" + GAME_STATUS_LOBBY + "\")"
+//    GET_GAME_NAME_QUERY = "select title from games where game_id = ?"
+//    IS_USER_HOST_QUERY = "select host_id = ? from games where game_id = ?"
+//    ADD_PLAYER_QUERY = "insert into players (`game_id`, `user_id`) values (?, ?)"
+//    GET_PLAYERS_QUERY = "select user_id from players where game_id = ? order by join_date"
+//    IS_PLAYER_IN_GAME_QUERY = "select count(*) from players where game_id = ? and user_id = ?"
+//    GET_GAME_STATUS_QUERY = "select status from games where game_id = ?"
+//    SET_GAME_STATUS_QUERY = "update games set status = ? where game_id = ?"
+//    NUM_PLAYERS_QUERY = "select count(*) from players where game_id = ?"
+//    SET_PLAYER_ROLE_QUERY = "update players set role = ? where user_id = ? and game_id = ?"
+//    PLAYER_ROLE_QUERY = "select role from players where user_id = ? and game_id = ?"
+//    MISSION_LEADER_QUERY = "select leader_id from missions where mission_id = (" + CURRENT_MISSION_ID_QUERY + ")"
+//    CURRENT_MISSION_NUM_QUERY = "select ifnull(max(mission_num),0) from missions where game_id = ?"
+//    CREATE_MISSION_QUERY = "insert into missions (`game_id`, `mission_num`, `leader_id`) values (?, ?, ?)"
+//    CREATE_TEAM_MEMBER_QUERY = "insert into teams (`mission_id`, `user_id`) values (?, ?)"
+//    CURRENT_MISSION_ID_QUERY = "select mission_id from missions where game_id = ? order by mission_id desc limit 1"
+//    ADD_VOTE_QUERY = "insert into votes (`mission_id`, `user_id`, `vote`) values (?, ?, ?)"
+//    ALL_VOTES_IN_QUERY = "select (select count(*) from votes where mission_id = ?) >= (select count(*) from players join missions on players.game_id = missions.game_id where mission_id = ?)"
+//    TEAM_APPROVED_QUERY = "select sum(vote) > sum(vote = 0) from votes where mission_id = ?"
+//    SET_MISSION_RESULT_QUERY = "update missions set result = ? where mission_id in (select mission_id from (" + CURRENT_MISSION_ID_QUERY + ") as missionIdToUpdate)"
+//    GET_CURRENT_MISSION_RESULT_QUERY = "select result from missions where mission_id = (" + CURRENT_MISSION_ID_QUERY + ")"
+//    IS_USER_ON_MISSION_QUERY = "select count(*) from teams where mission_id = (" + CURRENT_MISSION_ID_QUERY + ") and user_id = ?"
+//    ADD_MISSION_OUTCOME_QUERY = "update teams set outcome = ? where mission_id = (" + CURRENT_MISSION_ID_QUERY + ") and user_id = ?"
+//    IS_CURRENT_MISSION_OVER_QUERY = "select count(*) = 0 from teams where mission_id = (" + CURRENT_MISSION_ID_QUERY + ") and outcome is null"
+//    NUM_FAILS_IN_CURRENT_MISSION_QUERY = "select count(*) from teams where mission_id = (" + CURRENT_MISSION_ID_QUERY + ") and outcome = b'0'"
+//    RESISTANCE_WINS_QUERY = "select count(*) from missions where result = '" + RESISTANCE_RESULT_STRING + "' and game_id = ?"
+//    SPY_WINS_QUERY = "select count(*) from missions where result = '" + SPY_RESULT_STRING + "' and game_id = ?"
+//    CANCELED_CURRENT_MISSIONS_QUERY = "select count(*) from missions where mission_num = (" + CURRENT_MISSION_NUM_QUERY + ") and result = '" + CANCELED_RESULT_STRING + "' and game_id = ?"
+//    GET_MISSION_INFO = "select mission_num, leader_id, result from missions where game_id = ?"
+//)
 
-// numPlayersOnTeam gives you how many players should be on a team
-// given the total number of players and the mission number
-var numPlayersOnTeam = map[int]map[int]int {
-    5:{1:2, 2:3, 3:2, 4:3, 5:3},
-    6:{1:2, 2:3, 3:4, 4:3, 5:4},
-    7:{1:2, 2:3, 3:3, 4:4, 5:4},
-    8:{1:3, 2:4, 3:4, 4:5, 5:5},
-    9:{1:3, 2:4, 3:4, 4:5, 5:5},
-    10:{1:3, 2:4, 3:4, 4:5, 5:5}}
+//// numPlayersToNumSpies gives you how many spies there should be in a game
+//// for the given the number of players
+//var numPlayersToNumSpies = map[int]int {
+//    5:2,
+//    6:2,
+//    7:3,
+//    8:3,
+//    9:3,
+//    10:4}
 
-// CreateGame creates the game by storing the relevant information
-// in the games table in the DB.
-func CreateGame(request *http.Request) (int64, error) {
-    db, err := utils.ConnectToDB()
-    if err != nil {
-        return 0, err
-    }
+//// numPlayersOnTeam gives you how many players should be on a team
+//// given the total number of players and the mission number
+//var numPlayersOnTeam = map[int]map[int]int {
+//    5:{1:2, 2:3, 3:2, 4:3, 5:3},
+//    6:{1:2, 2:3, 3:4, 4:3, 5:4},
+//    7:{1:2, 2:3, 3:3, 4:4, 5:4},
+//    8:{1:3, 2:4, 3:4, 4:5, 5:5},
+//    9:{1:3, 2:4, 3:4, 4:5, 5:5},
+//    10:{1:3, 2:4, 3:4, 4:5, 5:5}}
 
-    title := request.FormValue(TITLE_KEY)
-    hostId := request.FormValue(HOST_ID_KEY)
-    result, err := db.Exec(CREATE_GAME_QUERY, title, hostId)
-    if err != nil {
-        return 0, err
-    }
-    id, err := result.LastInsertId()
-    if err != nil {
-        return 0, err
-    }
-    return id, nil
-}
+//// CreateGame creates the game by storing the relevant information
+//// in the games table in the DB.
+//func CreateGame(request *http.Request) (int64, error) {
+//    db, err := utils.ConnectToDB()
+//    if err != nil {
+//        return 0, err
+//    }
 
-// ValidateGameRequest takes in a game id and validates that it is
-// ok for the given user to join the given game
-func ValidateGameRequest(gameIdString string, user *users.User) (int, error) {
+//    title := request.FormValue(TITLE_KEY)
+//    hostId := request.FormValue(HOST_ID_KEY)
+//    result, err := db.Exec(CREATE_GAME_QUERY, title, hostId)
+//    if err != nil {
+//        return 0, err
+//    }
+//    id, err := result.LastInsertId()
+//    if err != nil {
+//        return 0, err
+//    }
+//    return id, nil
+//}
 
-    // Error if no game id is not specified
-    if gameIdString == "" {
-        return -1, errors.New("Game not specified.")
-    }
-    
-    // Error if game id can't be parsed
-    gameId, err := strconv.Atoi(gameIdString)
-    if err != nil {
-        return -1, errors.New("Game Id is not valid.")
-    }
-    
-    db, err := utils.ConnectToDB()
-    if err != nil {
-        return -1, err
-    }
-    results, err := db.Query(GET_GAME_STATUS_QUERY, gameId)
-    if err != nil {
-        return -1, err
-    }
-    // Error if no rows returned
-    if results.Next() {
-        var gameStatus string
-        if err := results.Scan(&gameStatus); err == nil {
-            switch {
-                default:
-                case gameStatus == GAME_STATUS_DONE:
-                    return -1, errors.New("Cannot join a game that is already done.")
-                case gameStatus == GAME_STATUS_IN_PROGRESS:
-                    // make sure that the player is an actual player of the game
-                    var isPlayer bool
-                    results, err = db.Query(IS_PLAYER_IN_GAME_QUERY, gameId, user.UserId)
-                    if err != nil {
-                        return -1, err
-                    }
-                    if results.Next() {
-                        if err := results.Scan(&isPlayer); err == nil {
-                            if !isPlayer {
-                                return -1, errors.New("Cannot join a game that is in progress")
-                            }
-                        }
-                    }
-                case gameStatus == GAME_STATUS_LOBBY:
-                    // make sure we're not going over the limit of 10 players
-                    // we are assuming the player is no longer in the list of players
-                    // if the player leaves the game while in the lobby status
-                    var numPlayers int
-                    results, err = db.Query(NUM_PLAYERS_QUERY, gameId)
-                    if err != nil {
-                        return -1, err
-                    }
-                    if results.Next() {
-                        if err := results.Scan(&numPlayers); err == nil {
-                            if numPlayers >= 10 {
-                                return -1, errors.New("Game has reach maximum capacity")
-                            }
-                        }
-                    }
-            }
-        } else {
-            return -1, err
-        }
-    } else {
-        return -1, errors.New("Game does not exist.")
-    }
-    
-    return gameId, nil
-}
+//// ValidateGameRequest takes in a game id and validates that it is
+//// ok for the given user to join the given game
+//func ValidateGameRequest(gameIdString string, user *users.User) (int, error) {
 
-// IsUserHost determines whether the given user id is the
-// host of the given game.
-func IsUserHost(gameId int, userId int) (bool, error) {
-    db, err := utils.ConnectToDB()
-    if err != nil {
-        return false, err
-    }
+//    // Error if no game id is not specified
+//    if gameIdString == "" {
+//        return -1, errors.New("Game not specified.")
+//    }
 
-    results, err := db.Query(IS_USER_HOST_QUERY, userId, gameId)
-    if err != nil {
-        return false, err
-    }
-    
-    if results.Next() {
-        var isHost bool
-        if err := results.Scan(&isHost); err == nil {
-            return isHost, nil
-        } else {
-            return false, err
-        }
-    }
-    return false, nil
-}
+//    // Error if game id can't be parsed
+//    gameId, err := strconv.Atoi(gameIdString)
+//    if err != nil {
+//        return -1, errors.New("Game Id is not valid.")
+//    }
 
-// AddPlayer adds the given user to the given game by storing the
-// relevant information in the players table. This can only be done
-// while the game is still in the LOBBY stage.
-func AddPlayer(gameId int, userId int) error {
-    db, err := utils.ConnectToDB()
-    if err != nil {
-        return err
-    }
+//    db, err := utils.ConnectToDB()
+//    if err != nil {
+//        return -1, err
+//    }
+//    results, err := db.Query(GET_GAME_STATUS_QUERY, gameId)
+//    if err != nil {
+//        return -1, err
+//    }
+//    // Error if no rows returned
+//    if results.Next() {
+//        var gameStatus string
+//        if err := results.Scan(&gameStatus); err == nil {
+//            switch {
+//                default:
+//                case gameStatus == GAME_STATUS_DONE:
+//                    return -1, errors.New("Cannot join a game that is already done.")
+//                case gameStatus == GAME_STATUS_IN_PROGRESS:
+//                    // make sure that the player is an actual player of the game
+//                    var isPlayer bool
+//                    results, err = db.Query(IS_PLAYER_IN_GAME_QUERY, gameId, user.UserId)
+//                    if err != nil {
+//                        return -1, err
+//                    }
+//                    if results.Next() {
+//                        if err := results.Scan(&isPlayer); err == nil {
+//                            if !isPlayer {
+//                                return -1, errors.New("Cannot join a game that is in progress")
+//                            }
+//                        }
+//                    }
+//                case gameStatus == GAME_STATUS_LOBBY:
+//                    // make sure we're not going over the limit of 10 players
+//                    // we are assuming the player is no longer in the list of players
+//                    // if the player leaves the game while in the lobby status
+//                    var numPlayers int
+//                    results, err = db.Query(NUM_PLAYERS_QUERY, gameId)
+//                    if err != nil {
+//                        return -1, err
+//                    }
+//                    if results.Next() {
+//                        if err := results.Scan(&numPlayers); err == nil {
+//                            if numPlayers >= 10 {
+//                                return -1, errors.New("Game has reach maximum capacity")
+//                            }
+//                        }
+//                    }
+//            }
+//        } else {
+//            return -1, err
+//        }
+//    } else {
+//        return -1, errors.New("Game does not exist.")
+//    }
 
-    // TODO: add validation that the game is still in LOBBY status
-    _, err = db.Exec(ADD_PLAYER_QUERY, gameId, userId)
-    if err != nil {
-        return err
-    }
-    return nil
-}
+//    return gameId, nil
+//}
 
-// GetGameName retrieves the game name from the database.
-// This should only be used for display purposes.
-func GetGameName(gameId int) (string, error) {
-    db, err := utils.ConnectToDB()
-    if err != nil {
-        return "", err
-    }
+//// IsUserHost determines whether the given user id is the
+//// host of the given game.
+//func IsUserHost(gameId int, userId int) (bool, error) {
+//    db, err := utils.ConnectToDB()
+//    if err != nil {
+//        return false, err
+//    }
 
-    results, err := db.Query(GET_GAME_NAME_QUERY, gameId)
-    if err != nil {
-        return "", err
-    }
-    
-    if results.Next() {
-        var gameTitle string
-        if err := results.Scan(&gameTitle); err == nil {
-            return gameTitle, nil
-        } else {
-            return "", err
-        }
-    }
-    return "", nil
-}
+//    results, err := db.Query(IS_USER_HOST_QUERY, userId, gameId)
+//    if err != nil {
+//        return false, err
+//    }
 
-// DeletePlayer deletes the given user from the given game by
-// removing the user/game pair from the players table. This can
-// only be done while the game is still in the LOBBY stage.
-func DeletePlayer(userId int, gameId int) {
+//    if results.Next() {
+//        var isHost bool
+//        if err := results.Scan(&isHost); err == nil {
+//            return isHost, nil
+//        } else {
+//            return false, err
+//        }
+//    }
+//    return false, nil
+//}
 
-}
+//// AddPlayer adds the given user to the given game by storing the
+//// relevant information in the players table. This can only be done
+//// while the game is still in the LOBBY stage.
+//func AddPlayer(gameId int, userId int) error {
+//    db, err := utils.ConnectToDB()
+//    if err != nil {
+//        return err
+//    }
 
-// GetPlayers retrieves all the current players under the given
-// game.
-func GetPlayers(gameId int) ([]*users.User, error) {
-    var playerList = make([]*users.User, 0)
-    db, err := utils.ConnectToDB()
-    if err != nil {
-        return playerList, err
-    }
+//    // TODO: add validation that the game is still in LOBBY status
+//    _, err = db.Exec(ADD_PLAYER_QUERY, gameId, userId)
+//    if err != nil {
+//        return err
+//    }
+//    return nil
+//}
 
-    results, err := db.Query(GET_PLAYERS_QUERY, gameId)
-    if err != nil {
-        return playerList, err
-    }
-    
-    for results.Next() {
-        var userId int
-        if err := results.Scan(&userId); err == nil {
-            user := users.LookupUserById(userId)
-            if user.IsValidUser() {
-                playerList = append(playerList, user)
-            } else {
-                utils.LogMessage("User not found: " + strconv.Itoa(userId), utils.RESISTANCE_LOG_PATH)
-            }
-        }
-    }
-    
-    return playerList, nil
-}
+//// GetGameName retrieves the game name from the database.
+//// This should only be used for display purposes.
+//func GetGameName(gameId int) (string, error) {
+//    db, err := utils.ConnectToDB()
+//    if err != nil {
+//        return "", err
+//    }
 
-// SetGameStatus sets the given status for the given game id.
-func SetGameStatus(gameId int, status string) error {
-    // TODO: validate status here
-    db, err := utils.ConnectToDB()
-    if err != nil {
-        return err
-    }
+//    results, err := db.Query(GET_GAME_NAME_QUERY, gameId)
+//    if err != nil {
+//        return "", err
+//    }
 
-    _, err = db.Exec(SET_GAME_STATUS_QUERY, status, gameId)
-    if err != nil {
-        return err
-    }
-    return nil
-}
+//    if results.Next() {
+//        var gameTitle string
+//        if err := results.Scan(&gameTitle); err == nil {
+//            return gameTitle, nil
+//        } else {
+//            return "", err
+//        }
+//    }
+//    return "", nil
+//}
 
-// AssignPlayerRoles assigns the roles of the players in the given
-// game randomly.
-func AssignPlayerRoles(gameId int) error {
-    db, err := utils.ConnectToDB()
-    if err != nil {
-        return err
-    }
+//// DeletePlayer deletes the given user from the given game by
+//// removing the user/game pair from the players table. This can
+//// only be done while the game is still in the LOBBY stage.
+//func DeletePlayer(userId int, gameId int) {
 
-    results, err := db.Query(GET_PLAYERS_QUERY, gameId)
-    if err != nil {
-        return err
-    }
-    
-    // Retrieve all players for this game
-    var players = make([]int,0)
-    numPlayers := 0
-    for results.Next() {
-        var playerId int
-        if err := results.Scan(&playerId); err == nil {
-            players = append(players, playerId)
-            numPlayers = numPlayers + 1
-        }
-    }
-    
-    if numSpies, ok := numPlayersToNumSpies[numPlayers]; ok {
-        // Determine which players are spies
-        spies := selectSpies(players, numSpies)
-        // Sets their roles in the DB
-        for _, playerId := range players {
-            if spies[playerId] {
-                err = setPlayerRole(playerId, gameId, SPY_ROLE)
-            } else {
-                err = setPlayerRole(playerId, gameId, RESISTANCE_ROLE)
-            }
-            if err != nil {
-                utils.LogMessage("Error while persisting roles " + err.Error(), utils.RESISTANCE_LOG_PATH)
-                // TODO: error checking of role persistence
-            }
-        }
-    } else {
-        // TODO: error out here, not valid number of players
-    }
-    
-    return nil
-}
+//}
 
-// selectSpies performs the random selection of spies given
-// the players and number of spies.
-func selectSpies(players []int, numSpies int) map[int]bool {
-    // TODO: error checking that numSpies < len(players)
-    var spies = make(map[int]bool)
-    var randIndex int
-    rand.Seed(time.Now().UnixNano())
-    for len(spies) < numSpies {
-        randIndex = rand.Intn(len(players))
-        spies[players[randIndex]] = true
-    }
-    
-    return spies
-}
+//// GetPlayers retrieves all the current players under the given
+//// game.
+//func GetPlayers(gameId int) ([]*users.User, error) {
+//    var playerList = make([]*users.User, 0)
+//    db, err := utils.ConnectToDB()
+//    if err != nil {
+//        return playerList, err
+//    }
 
-// setPlayerRole persists the players role in the DB.
-func setPlayerRole(userId int, gameId int, role string) error {
-    db, err := utils.ConnectToDB()
-    if err != nil {
-        return err
-    }
+//    results, err := db.Query(GET_PLAYERS_QUERY, gameId)
+//    if err != nil {
+//        return playerList, err
+//    }
 
-    _, err = db.Query(SET_PLAYER_ROLE_QUERY, role, userId, gameId)
-    if err != nil {
-        return err
-    }
-    
-    return nil
-}
+//    for results.Next() {
+//        var userId int
+//        if err := results.Scan(&userId); err == nil {
+//            user := users.LookupUserById(userId)
+//            if user.IsValidUser() {
+//                playerList = append(playerList, user)
+//            } else {
+//                utils.LogMessage("User not found: " + strconv.Itoa(userId), utils.RESISTANCE_LOG_PATH)
+//            }
+//        }
+//    }
 
-// GetPlayerRole returns the users role (RESISTANCE or SPY)
-// for the given game.
-func GetPlayerRole(userId int, gameId int) (string, error) {
-    db, err := utils.ConnectToDB()
-    if err != nil {
-        return "", err
-    }
+//    return playerList, nil
+//}
 
-    result, err := db.Query(PLAYER_ROLE_QUERY, userId, gameId)
-    if err != nil {
-        return "", err
-    }
-    
-    // We only expect one result
-    if result.Next() {
-        var role []byte
-        if err := result.Scan(&role); err == nil {
-            utils.LogMessage("Role found: " + string(role), utils.RESISTANCE_LOG_PATH)
-            if string(role) == RESISTANCE_ROLE {
-                return "RESISTANCE", nil
-            } else if string(role) == SPY_ROLE {
-                return "SPY", nil
-            }
-        }
-    }
-    
-    return "", errors.New("Something went wrong with getting the player roles")
-}
+//// SetGameStatus sets the given status for the given game id.
+//func SetGameStatus(gameId int, status string) error {
+//    // TODO: validate status here
+//    db, err := utils.ConnectToDB()
+//    if err != nil {
+//        return err
+//    }
 
-// IsUserMissionLeader returns whether the given user is
-// the mission leader of the current mission. Assumes that
-// the game is in progress.
-func IsUserMissionLeader(userId int, gameId int) (bool, error) {
-    db, err := utils.ConnectToDB()
-    if err != nil {
-        return false, err
-    }
+//    _, err = db.Exec(SET_GAME_STATUS_QUERY, status, gameId)
+//    if err != nil {
+//        return err
+//    }
+//    return nil
+//}
 
-    result, err := db.Query(MISSION_LEADER_QUERY, gameId)
-    if err != nil {
-        return false, err
-    }
-    
-    // We only expect one result
-    if result.Next() {
-        var leaderId int
-        if err := result.Scan(&leaderId); err == nil {
-            return leaderId == userId, nil
-        }
-    }
-    
-    return false, errors.New("Something went wrong with retrieving the leader")
-}
+//// AssignPlayerRoles assigns the roles of the players in the given
+//// game randomly.
+//func AssignPlayerRoles(gameId int) error {
+//    db, err := utils.ConnectToDB()
+//    if err != nil {
+//        return err
+//    }
 
-// StartNextMission starts the next mission for the given game.
-// Assumes given game exists and has started, and has more than
-// one player.
-func StartNextMission(gameId int) error {
+//    results, err := db.Query(GET_PLAYERS_QUERY, gameId)
+//    if err != nil {
+//        return err
+//    }
 
-    var nextMissionNum int
-    var currentLeaderId int
-    var newLeaderId int
-        
-    db, err := utils.ConnectToDB()
-    if err != nil {
-        return err
-    }
+//    // Retrieve all players for this game
+//    var players = make([]int,0)
+//    numPlayers := 0
+//    for results.Next() {
+//        var playerId int
+//        if err := results.Scan(&playerId); err == nil {
+//            players = append(players, playerId)
+//            numPlayers = numPlayers + 1
+//        }
+//    }
 
-    // Do query for the next mission number
-    missionNum, err := GetCurrentMissionNum(gameId)
-    if err != nil {
-        return err
-    } else {
-        if missionNum == 0 {
-            nextMissionNum = 1
-        } else {
-	        result, err := db.Query(GET_CURRENT_MISSION_RESULT_QUERY, gameId)
-	        if err != nil {
-	            return err
-	        } else {
-	            var missionResult string
-	            if result.Next() {
-	                if err := result.Scan(&missionResult); err == nil {
-	                    if missionResult != CANCELED_RESULT_STRING {
-	                        nextMissionNum = missionNum + 1
-	                    } else {
-	                        nextMissionNum = missionNum
-	                    }
-	                }
-	                // TODO error checking
-	            }
-	            // TODO error checking
-	        }
-	    }
-    }
-    
-    // Do query for the new leader
-    // First get the current leader
-    result, err := db.Query(MISSION_LEADER_QUERY, gameId)
-    if err != nil {
-        return err
-    }
-    if result.Next() {
-        if err := result.Scan(&currentLeaderId); err != nil {
-            return err
-        }
-    } else {
-        currentLeaderId = users.UNKNOWN_USER.UserId
-    }
-    // Then get the current players
-    results, err := db.Query(GET_PLAYERS_QUERY, gameId)
-    if err != nil {
-        return err
-    }
-    var userIds = make([]int, 0)
-    for results.Next() {
-        var userId int
-        if err := results.Scan(&userId); err == nil {
-            userIds = append(userIds, userId)
-        }
-    }
-    // If there is no current leader, this must be the first
-    // mission, so the new leader is just the first player.
-    if currentLeaderId == users.UNKNOWN_USER.UserId {
-        newLeaderId = userIds[0]
-    }
-    // And select the next leader from the current players
-    for i, _ := range userIds {
-        if userIds[i] == currentLeaderId {
-            newLeaderId = userIds[(i + 1) % len(userIds)]
-            break
-        }
-    }
-    
-    // Do query for creating the mission
-    _, err = db.Exec(CREATE_MISSION_QUERY, gameId, nextMissionNum, newLeaderId)
-    if err != nil {
-        return err
-    }
-    
-    return nil
-}
+//    if numSpies, ok := numPlayersToNumSpies[numPlayers]; ok {
+//        // Determine which players are spies
+//        spies := selectSpies(players, numSpies)
+//        // Sets their roles in the DB
+//        for _, playerId := range players {
+//            if spies[playerId] {
+//                err = setPlayerRole(playerId, gameId, SPY_ROLE)
+//            } else {
+//                err = setPlayerRole(playerId, gameId, RESISTANCE_ROLE)
+//            }
+//            if err != nil {
+//                utils.LogMessage("Error while persisting roles " + err.Error(), utils.RESISTANCE_LOG_PATH)
+//                // TODO: error checking of role persistence
+//            }
+//        }
+//    } else {
+//        // TODO: error out here, not valid number of players
+//    }
 
-func GetCurrentMissionNum(gameId int) (int, error) {
-    missionNum := 0
-    
-    db, err := utils.ConnectToDB()
-    if err != nil {
-        return -1, err
-    }
+//    return nil
+//}
 
-    result, err := db.Query(CURRENT_MISSION_NUM_QUERY, gameId)
-    if err != nil {
-        return -1, err
-    }
-    // We only expect one result
-    if result.Next() {
-        if err := result.Scan(&missionNum); err != nil {
-            return -1, err
-        }
-    }
-    
-    return missionNum, nil
-}
+//// selectSpies performs the random selection of spies given
+//// the players and number of spies.
+//func selectSpies(players []int, numSpies int) map[int]bool {
+//    // TODO: error checking that numSpies < len(players)
+//    var spies = make(map[int]bool)
+//    var randIndex int
+//    rand.Seed(time.Now().UnixNano())
+//    for len(spies) < numSpies {
+//        randIndex = rand.Intn(len(players))
+//        spies[players[randIndex]] = true
+//    }
 
-// CreateTeam creates the team for the mission with the given players
-// Assumes that the number of players is valid.
-func CreateTeam(gameId int, playerIds []int) error {
-    var missionId int
+//    return spies
+//}
 
-    db, err := utils.ConnectToDB()
-    if err != nil {
-        return err
-    }
-    
-    result, err := db.Query(CURRENT_MISSION_ID_QUERY, gameId)
-    if err != nil {
-        return err
-    }
-    // We only expect one result
-    if result.Next() {
-        if err := result.Scan(&missionId); err != nil {
-            return err
-        }
-    }
-    
-    for _, playerId := range playerIds {
-        _, err = db.Exec(CREATE_TEAM_MEMBER_QUERY, missionId, playerId)
-        if err != nil {
-            return err
-        }
-    }
-    
-    return nil
-}
+//// setPlayerRole persists the players role in the DB.
+//func setPlayerRole(userId int, gameId int, role string) error {
+//    db, err := utils.ConnectToDB()
+//    if err != nil {
+//        return err
+//    }
 
-// GetTeamSize gets the size of the current team that needs to be sent.
-func GetTeamSize(gameId int) (int, error) {
-    // Do query for the current mission number
-    missionNum, err := GetCurrentMissionNum(gameId)
-    if err != nil {
-        return -1, err
-    }
-    
-    users, err := GetPlayers(gameId)
-    if err != nil {
-        return -1, err
-    }
-    
-    teamSize, ok := numPlayersOnTeam[len(users)][missionNum]
-    if ok {
-        return teamSize, nil
-    }
-    
-    return -1, errors.New("Could not find how many players should be on this team")
-}
+//    _, err = db.Query(SET_PLAYER_ROLE_QUERY, role, userId, gameId)
+//    if err != nil {
+//        return err
+//    }
 
-// AddTeamVote adds a vote for the team of the current mission
-// under the given user id
-func AddTeamVote(gameId int, userId int, vote bool) error {
-    var missionId int
+//    return nil
+//}
 
-    db, err := utils.ConnectToDB()
-    if err != nil {
-        return err
-    }
-    
-    result, err := db.Query(CURRENT_MISSION_ID_QUERY, gameId)
-    if err != nil {
-        return err
-    }
-    // We only expect one result
-    if result.Next() {
-        if err := result.Scan(&missionId); err != nil {
-            return err
-        }
-    }
-    
-    _, err = db.Exec(ADD_VOTE_QUERY, missionId, userId, vote)
-    if err != nil {
-        return err
-    }
-    
-    return nil
-}
+//// GetPlayerRole returns the users role (RESISTANCE or SPY)
+//// for the given game.
+//func GetPlayerRole(userId int, gameId int) (string, error) {
+//    db, err := utils.ConnectToDB()
+//    if err != nil {
+//        return "", err
+//    }
 
-// CheckMissionVotes checks that the current mission's votes are all in.
-// If it is, it will also return whether the mission was approved in the
-// format (missionApproved, allVotesIn, error)
-func CheckMissionVotes(gameId int) (bool, bool, error) {
-    var missionId int
-    var allVotesIn bool
-    var missionApproved bool
+//    result, err := db.Query(PLAYER_ROLE_QUERY, userId, gameId)
+//    if err != nil {
+//        return "", err
+//    }
 
-    db, err := utils.ConnectToDB()
-    if err != nil {
-        return false, false, err
-    }
-    
-    // Query for current mission id
-    result, err := db.Query(CURRENT_MISSION_ID_QUERY, gameId)
-    if err != nil {
-        return false, false, err
-    }
-    // We only expect one result
-    if result.Next() {
-        if err := result.Scan(&missionId); err != nil {
-            return false, false, err
-        }
-    }
-    
-    // Query to see if all votes are in
-    result, err = db.Query(ALL_VOTES_IN_QUERY, missionId, missionId)
-    if err != nil {
-        return false, false, err
-    }
-    // We only expect one result
-    if result.Next() {
-        if err := result.Scan(&allVotesIn); err != nil {
-            return false, false, err
-        }
-    }
-    
-    // Query to see whether the mission got approved
-    result, err = db.Query(TEAM_APPROVED_QUERY, missionId)
-    if err != nil {
-        return false, false, err
-    }
-    // We only expect one result
-    if result.Next() {
-        if err := result.Scan(&missionApproved); err != nil {
-            return false, false, err
-        }
-    }
-    
-    return missionApproved, allVotesIn, nil
-}
+//    // We only expect one result
+//    if result.Next() {
+//        var role []byte
+//        if err := result.Scan(&role); err == nil {
+//            utils.LogMessage("Role found: " + string(role), utils.RESISTANCE_LOG_PATH)
+//            if string(role) == RESISTANCE_ROLE {
+//                return "RESISTANCE", nil
+//            } else if string(role) == SPY_ROLE {
+//                return "SPY", nil
+//            }
+//        }
+//    }
 
-// SetMissionResult sets the given result as the result for
-// the current mission
-func SetMissionResult(gameId int, result string) error {
-    if result != RESISTANCE_RESULT_STRING && result != SPY_RESULT_STRING && result != CANCELED_RESULT_STRING {
-        return errors.New("Invalid result string supplied to SetMissionResult")
-    }
+//    return "", errors.New("Something went wrong with getting the player roles")
+//}
 
-    db, err := utils.ConnectToDB()
-    if err != nil {
-        return err
-    }
-    
-    _, err = db.Exec(SET_MISSION_RESULT_QUERY, result, gameId)
-    if err != nil {
-        return err
-    }
-    
-    return nil
-}
+//// IsUserMissionLeader returns whether the given user is
+//// the mission leader of the current mission. Assumes that
+//// the game is in progress.
+//func IsUserMissionLeader(userId int, gameId int) (bool, error) {
+//    db, err := utils.ConnectToDB()
+//    if err != nil {
+//        return false, err
+//    }
 
-// IsUserOnMission returns whether the given user is on the
-// current mission in the given game.
-func IsUserOnMission(gameId int, userId int) (bool, error) {
-    var isOnMission bool
+//    result, err := db.Query(MISSION_LEADER_QUERY, gameId)
+//    if err != nil {
+//        return false, err
+//    }
 
-    db, err := utils.ConnectToDB()
-    if err != nil {
-        return false, err
-    }
-    
-    result, err := db.Query(IS_USER_ON_MISSION_QUERY, gameId, userId)
-    if err != nil {
-        return false, err
-    }
-    
-    if result.Next() {
-        if err := result.Scan(&isOnMission); err != nil {
-            return false, err
-        }
-    }
-    
-    return isOnMission, nil
-}
+//    // We only expect one result
+//    if result.Next() {
+//        var leaderId int
+//        if err := result.Scan(&leaderId); err == nil {
+//            return leaderId == userId, nil
+//        }
+//    }
 
-// AddMissionOutcome sets the outcome for the given team member
-// of the current mission of the given game id.
-func AddMissionOutcome(gameId int, userId int, outcome bool) error {
-    db, err := utils.ConnectToDB()
-    if err != nil {
-        return err
-    }
-    
-    _, err = db.Exec(ADD_MISSION_OUTCOME_QUERY, outcome, gameId, userId)
-    if err != nil {
-        return err
-    }
-    
-    return nil
-}
+//    return false, errors.New("Something went wrong with retrieving the leader")
+//}
 
-// IsCurrentMissionOver determines if the current mission is over
-// for the given game id
-func IsCurrentMissionOver(gameId int) (bool, string, error) {
-    var isMissionOver bool
-    var missionWinner string
+//// StartNextMission starts the next mission for the given game.
+//// Assumes given game exists and has started, and has more than
+//// one player.
+//func StartNextMission(gameId int) error {
 
-    db, err := utils.ConnectToDB()
-    if err != nil {
-        return false, "", err
-    }
-    
-    result, err := db.Query(IS_CURRENT_MISSION_OVER_QUERY, gameId)
-    if err != nil {
-        return false, "", err
-    }
-    
-    if result.Next() {
-        if err := result.Scan(&isMissionOver); err != nil {
-            return false, "", err
-        }
-    }
-    
-    if isMissionOver {
-        var numFails int
-        var missionNum int
-        var numPlayers int
-    
-        result, err = db.Query(NUM_FAILS_IN_CURRENT_MISSION_QUERY, gameId)
-        if err != nil {
-            return false, "", err
-        }
-        
-        if result.Next() {
-            if err := result.Scan(&numFails); err != nil {
-                return false, "", err
-            }
-        }
-        
-        result, err = db.Query(CURRENT_MISSION_NUM_QUERY, gameId)
-        if err != nil {
-            return false, "", err
-        }
-        
-        if result.Next() {
-            if err := result.Scan(&missionNum); err != nil {
-                return false, "", err
-            }
-        }
-        
-        result, err = db.Query(NUM_PLAYERS_QUERY, gameId)
-        if err != nil {
-            return false, "", err
-        }
-        
-        if result.Next() {
-            if err := result.Scan(&numPlayers); err != nil {
-                return false, "", err
-            }
-        }
-        
-        // The special mission is when it's the fourth mission
-        // and there are greater than or equal to 7 players.
-        // This mission requires at least 2 fails for the mission
-        // to fail.
-        specialMission := missionNum == 4 && numPlayers >= 7
-        
-        if (specialMission && numFails >= 2) || (!specialMission && numFails >= 1) {
-            missionWinner = SPY_RESULT_STRING
-        } else {
-            missionWinner = RESISTANCE_RESULT_STRING
-        }
-    }
-    
-    return isMissionOver, missionWinner, nil
-}
+//    var nextMissionNum int
+//    var currentLeaderId int
+//    var newLeaderId int
 
-// IsGameOver determines if the given game is over.
-// the game is over if there are 5 of the same mission numbers
-// in CANCELED status or if either the RESISTANCE or SPY has
-// at least 3 mission wins
-func IsGameOver(gameId int) (bool, string, error) {
-    db, err := utils.ConnectToDB()
-    if err != nil {
-        return false, "", err
-    }
-    
-    result, err := db.Query(RESISTANCE_WINS_QUERY, gameId)
-    if err != nil {
-        return false, "", err
-    }
-    
-    var numResistanceWins int
-    if result.Next() {
-        if err := result.Scan(&numResistanceWins); err != nil {
-            return false, "", err
-        } else {
-            if numResistanceWins >= 3 {
-                return true, RESISTANCE_RESULT_STRING, nil
-            }
-        }
-    }
-    
-    result, err = db.Query(SPY_WINS_QUERY, gameId)
-    if err != nil {
-        return false, "", err
-    }
-    
-    var numSpyWins int
-    if result.Next() {
-        if err := result.Scan(&numSpyWins); err != nil {
-            return false, "", err
-        } else {
-            if numSpyWins >= 3 {
-                return true, SPY_RESULT_STRING, nil
-            }
-        }
-    }
-    
-    result, err = db.Query(CANCELED_CURRENT_MISSIONS_QUERY, gameId, gameId)
-    if err != nil {
-        return false, "", err
-    }
-    
-    var numCanceled int
-    if result.Next() {
-        if err := result.Scan(&numCanceled); err != nil {
-            return false, "", err
-        } else {
-            if numCanceled >= 5 {
-                return true, SPY_RESULT_STRING, nil
-            }
-        }
-    }
-    
-    return false, "", nil
-}
+//    db, err := utils.ConnectToDB()
+//    if err != nil {
+//        return err
+//    }
 
-// GetMissionInfo gets all the mission information for the given game id.
-func GetMissionInfo(gameId int) ([]map[string]interface{}, error) {
-    var returnValue = make([]map[string]interface{}, 0)
+//    // Do query for the next mission number
+//    missionNum, err := GetCurrentMissionNum(gameId)
+//    if err != nil {
+//        return err
+//    } else {
+//        if missionNum == 0 {
+//            nextMissionNum = 1
+//        } else {
+//	        result, err := db.Query(GET_CURRENT_MISSION_RESULT_QUERY, gameId)
+//	        if err != nil {
+//	            return err
+//	        } else {
+//	            var missionResult string
+//	            if result.Next() {
+//	                if err := result.Scan(&missionResult); err == nil {
+//	                    if missionResult != CANCELED_RESULT_STRING {
+//	                        nextMissionNum = missionNum + 1
+//	                    } else {
+//	                        nextMissionNum = missionNum
+//	                    }
+//	                }
+//	                // TODO error checking
+//	            }
+//	            // TODO error checking
+//	        }
+//	    }
+//    }
 
-    db, err := utils.ConnectToDB()
-    if err != nil {
-        return returnValue, err
-    }
-    
-    result, err := db.Query(GET_MISSION_INFO, gameId)
-    if err != nil {
-        return returnValue, err
-    }
-    
-    var missionNum int
-    var leaderId int
-    var missionResult string
-    for result.Next() {
-        if err := result.Scan(&missionNum, &leaderId, &missionResult); err == nil {
-            var singleMission = make(map[string]interface{})
-            singleMission["missionNum"] = missionNum
-            singleMission["missionLeader"] = users.LookupUserById(leaderId)
-            singleMission["missionResult"] = missionResult
-            
-            returnValue = append(returnValue, singleMission)
-        } else {
-            utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
-        }
-    }
-    
-    return returnValue, nil
-}
+//    // Do query for the new leader
+//    // First get the current leader
+//    result, err := db.Query(MISSION_LEADER_QUERY, gameId)
+//    if err != nil {
+//        return err
+//    }
+//    if result.Next() {
+//        if err := result.Scan(&currentLeaderId); err != nil {
+//            return err
+//        }
+//    } else {
+//        currentLeaderId = users.UNKNOWN_USER.UserId
+//    }
+//    // Then get the current players
+//    results, err := db.Query(GET_PLAYERS_QUERY, gameId)
+//    if err != nil {
+//        return err
+//    }
+//    var userIds = make([]int, 0)
+//    for results.Next() {
+//        var userId int
+//        if err := results.Scan(&userId); err == nil {
+//            userIds = append(userIds, userId)
+//        }
+//    }
+//    // If there is no current leader, this must be the first
+//    // mission, so the new leader is just the first player.
+//    if currentLeaderId == users.UNKNOWN_USER.UserId {
+//        newLeaderId = userIds[0]
+//    }
+//    // And select the next leader from the current players
+//    for i, _ := range userIds {
+//        if userIds[i] == currentLeaderId {
+//            newLeaderId = userIds[(i + 1) % len(userIds)]
+//            break
+//        }
+//    }
+
+//    // Do query for creating the mission
+//    _, err = db.Exec(CREATE_MISSION_QUERY, gameId, nextMissionNum, newLeaderId)
+//    if err != nil {
+//        return err
+//    }
+
+//    return nil
+//}
+
+//func GetCurrentMissionNum(gameId int) (int, error) {
+//    missionNum := 0
+
+//    db, err := utils.ConnectToDB()
+//    if err != nil {
+//        return -1, err
+//    }
+
+//    result, err := db.Query(CURRENT_MISSION_NUM_QUERY, gameId)
+//    if err != nil {
+//        return -1, err
+//    }
+//    // We only expect one result
+//    if result.Next() {
+//        if err := result.Scan(&missionNum); err != nil {
+//            return -1, err
+//        }
+//    }
+
+//    return missionNum, nil
+//}
+
+//// CreateTeam creates the team for the mission with the given players
+//// Assumes that the number of players is valid.
+//func CreateTeam(gameId int, playerIds []int) error {
+//    var missionId int
+
+//    db, err := utils.ConnectToDB()
+//    if err != nil {
+//        return err
+//    }
+
+//    result, err := db.Query(CURRENT_MISSION_ID_QUERY, gameId)
+//    if err != nil {
+//        return err
+//    }
+//    // We only expect one result
+//    if result.Next() {
+//        if err := result.Scan(&missionId); err != nil {
+//            return err
+//        }
+//    }
+
+//    for _, playerId := range playerIds {
+//        _, err = db.Exec(CREATE_TEAM_MEMBER_QUERY, missionId, playerId)
+//        if err != nil {
+//            return err
+//        }
+//    }
+
+//    return nil
+//}
+
+//// GetTeamSize gets the size of the current team that needs to be sent.
+//func GetTeamSize(gameId int) (int, error) {
+//    // Do query for the current mission number
+//    missionNum, err := GetCurrentMissionNum(gameId)
+//    if err != nil {
+//        return -1, err
+//    }
+
+//    users, err := GetPlayers(gameId)
+//    if err != nil {
+//        return -1, err
+//    }
+
+//    teamSize, ok := numPlayersOnTeam[len(users)][missionNum]
+//    if ok {
+//        return teamSize, nil
+//    }
+
+//    return -1, errors.New("Could not find how many players should be on this team")
+//}
+
+//// AddTeamVote adds a vote for the team of the current mission
+//// under the given user id
+//func AddTeamVote(gameId int, userId int, vote bool) error {
+//    var missionId int
+
+//    db, err := utils.ConnectToDB()
+//    if err != nil {
+//        return err
+//    }
+
+//    result, err := db.Query(CURRENT_MISSION_ID_QUERY, gameId)
+//    if err != nil {
+//        return err
+//    }
+//    // We only expect one result
+//    if result.Next() {
+//        if err := result.Scan(&missionId); err != nil {
+//            return err
+//        }
+//    }
+
+//    _, err = db.Exec(ADD_VOTE_QUERY, missionId, userId, vote)
+//    if err != nil {
+//        return err
+//    }
+
+//    return nil
+//}
+
+//// CheckMissionVotes checks that the current mission's votes are all in.
+//// If it is, it will also return whether the mission was approved in the
+//// format (missionApproved, allVotesIn, error)
+//func CheckMissionVotes(gameId int) (bool, bool, error) {
+//    var missionId int
+//    var allVotesIn bool
+//    var missionApproved bool
+
+//    db, err := utils.ConnectToDB()
+//    if err != nil {
+//        return false, false, err
+//    }
+
+//    // Query for current mission id
+//    result, err := db.Query(CURRENT_MISSION_ID_QUERY, gameId)
+//    if err != nil {
+//        return false, false, err
+//    }
+//    // We only expect one result
+//    if result.Next() {
+//        if err := result.Scan(&missionId); err != nil {
+//            return false, false, err
+//        }
+//    }
+
+//    // Query to see if all votes are in
+//    result, err = db.Query(ALL_VOTES_IN_QUERY, missionId, missionId)
+//    if err != nil {
+//        return false, false, err
+//    }
+//    // We only expect one result
+//    if result.Next() {
+//        if err := result.Scan(&allVotesIn); err != nil {
+//            return false, false, err
+//        }
+//    }
+
+//    // Query to see whether the mission got approved
+//    result, err = db.Query(TEAM_APPROVED_QUERY, missionId)
+//    if err != nil {
+//        return false, false, err
+//    }
+//    // We only expect one result
+//    if result.Next() {
+//        if err := result.Scan(&missionApproved); err != nil {
+//            return false, false, err
+//        }
+//    }
+
+//    return missionApproved, allVotesIn, nil
+//}
+
+//// SetMissionResult sets the given result as the result for
+//// the current mission
+//func SetMissionResult(gameId int, result string) error {
+//    if result != RESISTANCE_RESULT_STRING && result != SPY_RESULT_STRING && result != CANCELED_RESULT_STRING {
+//        return errors.New("Invalid result string supplied to SetMissionResult")
+//    }
+
+//    db, err := utils.ConnectToDB()
+//    if err != nil {
+//        return err
+//    }
+
+//    _, err = db.Exec(SET_MISSION_RESULT_QUERY, result, gameId)
+//    if err != nil {
+//        return err
+//    }
+
+//    return nil
+//}
+
+//// IsUserOnMission returns whether the given user is on the
+//// current mission in the given game.
+//func IsUserOnMission(gameId int, userId int) (bool, error) {
+//    var isOnMission bool
+
+//    db, err := utils.ConnectToDB()
+//    if err != nil {
+//        return false, err
+//    }
+
+//    result, err := db.Query(IS_USER_ON_MISSION_QUERY, gameId, userId)
+//    if err != nil {
+//        return false, err
+//    }
+
+//    if result.Next() {
+//        if err := result.Scan(&isOnMission); err != nil {
+//            return false, err
+//        }
+//    }
+
+//    return isOnMission, nil
+//}
+
+//// AddMissionOutcome sets the outcome for the given team member
+//// of the current mission of the given game id.
+//func AddMissionOutcome(gameId int, userId int, outcome bool) error {
+//    db, err := utils.ConnectToDB()
+//    if err != nil {
+//        return err
+//    }
+
+//    _, err = db.Exec(ADD_MISSION_OUTCOME_QUERY, outcome, gameId, userId)
+//    if err != nil {
+//        return err
+//    }
+
+//    return nil
+//}
+
+//// IsCurrentMissionOver determines if the current mission is over
+//// for the given game id
+//func IsCurrentMissionOver(gameId int) (bool, string, error) {
+//    var isMissionOver bool
+//    var missionWinner string
+
+//    db, err := utils.ConnectToDB()
+//    if err != nil {
+//        return false, "", err
+//    }
+
+//    result, err := db.Query(IS_CURRENT_MISSION_OVER_QUERY, gameId)
+//    if err != nil {
+//        return false, "", err
+//    }
+
+//    if result.Next() {
+//        if err := result.Scan(&isMissionOver); err != nil {
+//            return false, "", err
+//        }
+//    }
+
+//    if isMissionOver {
+//        var numFails int
+//        var missionNum int
+//        var numPlayers int
+
+//        result, err = db.Query(NUM_FAILS_IN_CURRENT_MISSION_QUERY, gameId)
+//        if err != nil {
+//            return false, "", err
+//        }
+
+//        if result.Next() {
+//            if err := result.Scan(&numFails); err != nil {
+//                return false, "", err
+//            }
+//        }
+
+//        result, err = db.Query(CURRENT_MISSION_NUM_QUERY, gameId)
+//        if err != nil {
+//            return false, "", err
+//        }
+
+//        if result.Next() {
+//            if err := result.Scan(&missionNum); err != nil {
+//                return false, "", err
+//            }
+//        }
+
+//        result, err = db.Query(NUM_PLAYERS_QUERY, gameId)
+//        if err != nil {
+//            return false, "", err
+//        }
+
+//        if result.Next() {
+//            if err := result.Scan(&numPlayers); err != nil {
+//                return false, "", err
+//            }
+//        }
+
+//        // The special mission is when it's the fourth mission
+//        // and there are greater than or equal to 7 players.
+//        // This mission requires at least 2 fails for the mission
+//        // to fail.
+//        specialMission := missionNum == 4 && numPlayers >= 7
+
+//        if (specialMission && numFails >= 2) || (!specialMission && numFails >= 1) {
+//            missionWinner = SPY_RESULT_STRING
+//        } else {
+//            missionWinner = RESISTANCE_RESULT_STRING
+//        }
+//    }
+
+//    return isMissionOver, missionWinner, nil
+//}
+
+//// IsGameOver determines if the given game is over.
+//// the game is over if there are 5 of the same mission numbers
+//// in CANCELED status or if either the RESISTANCE or SPY has
+//// at least 3 mission wins
+//func IsGameOver(gameId int) (bool, string, error) {
+//    db, err := utils.ConnectToDB()
+//    if err != nil {
+//        return false, "", err
+//    }
+
+//    result, err := db.Query(RESISTANCE_WINS_QUERY, gameId)
+//    if err != nil {
+//        return false, "", err
+//    }
+
+//    var numResistanceWins int
+//    if result.Next() {
+//        if err := result.Scan(&numResistanceWins); err != nil {
+//            return false, "", err
+//        } else {
+//            if numResistanceWins >= 3 {
+//                return true, RESISTANCE_RESULT_STRING, nil
+//            }
+//        }
+//    }
+
+//    result, err = db.Query(SPY_WINS_QUERY, gameId)
+//    if err != nil {
+//        return false, "", err
+//    }
+
+//    var numSpyWins int
+//    if result.Next() {
+//        if err := result.Scan(&numSpyWins); err != nil {
+//            return false, "", err
+//        } else {
+//            if numSpyWins >= 3 {
+//                return true, SPY_RESULT_STRING, nil
+//            }
+//        }
+//    }
+
+//    result, err = db.Query(CANCELED_CURRENT_MISSIONS_QUERY, gameId, gameId)
+//    if err != nil {
+//        return false, "", err
+//    }
+
+//    var numCanceled int
+//    if result.Next() {
+//        if err := result.Scan(&numCanceled); err != nil {
+//            return false, "", err
+//        } else {
+//            if numCanceled >= 5 {
+//                return true, SPY_RESULT_STRING, nil
+//            }
+//        }
+//    }
+
+//    return false, "", nil
+//}
+
+//// GetMissionInfo gets all the mission information for the given game id.
+//func GetMissionInfo(gameId int) ([]map[string]interface{}, error) {
+//    var returnValue = make([]map[string]interface{}, 0)
+
+//    db, err := utils.ConnectToDB()
+//    if err != nil {
+//        return returnValue, err
+//    }
+
+//    result, err := db.Query(GET_MISSION_INFO, gameId)
+//    if err != nil {
+//        return returnValue, err
+//    }
+
+//    var missionNum int
+//    var leaderId int
+//    var missionResult string
+//    for result.Next() {
+//        if err := result.Scan(&missionNum, &leaderId, &missionResult); err == nil {
+//            var singleMission = make(map[string]interface{})
+//            singleMission["missionNum"] = missionNum
+//            singleMission["missionLeader"] = users.LookupUserById(leaderId)
+//            singleMission["missionResult"] = missionResult
+
+//            returnValue = append(returnValue, singleMission)
+//        } else {
+//            utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
+//        }
+//    }
+
+//    return returnValue, nil
+//}

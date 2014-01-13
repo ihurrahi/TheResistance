@@ -1,8 +1,11 @@
 package game
 
 import (
-	"resistance/utils"
+	"errors"
+	"math/rand"
+	"resistance/users"
 	"strconv"
+	"time"
 )
 
 const (
@@ -14,7 +17,7 @@ const (
 type Game struct {
 	GameId     int
 	Title      string
-	Host       Player
+	Host       *Player
 	GameStatus int
 	Missions   []*Mission
 	Players    []*Player
@@ -40,46 +43,54 @@ var numPlayersOnTeam = map[int]map[int]int{
 	9:  {1: 3, 2: 4, 3: 4, 4: 5, 5: 5},
 	10: {1: 3, 2: 4, 3: 4, 4: 5, 5: 5}}
 
-func (game *Game) AddPlayer(user *User) {
+func CreateGame(gameTitle string, hostId string) (int64, error) {
+	// TODO: implement
+	return 0, nil
+}
+
+func IsValidGame(gameId string, requestUser *users.User) (map[string]string, error) {
+	// TODO: implement
+	return make(map[string]string), nil
+}
+
+func PersistGame(currentGame *Game) {
+	// TODO: implement
+}
+
+func ReadGame(gameId int) *Game {
+	// TODO: implement
+	return nil
+}
+
+func (game *Game) AddPlayer(user *users.User) {
 	newPlayer := NewPlayer(game, user)
 	game.Players = append(game.Players, newPlayer)
 }
 
-func (game *Game) AddVote(user *User, vote bool) {
-	currentMission := game.GetCurrentMission()
-	currentMission.AddVote(user, vote)
-}
-
-func (game *Game) AddOutcome(user *User, outcome bool) {
-	currentMission := game.GetCurrentMission()
-	currentMission.AddOutcome(user, outcome)
-}
-
-func (game *Game) IsCurrentMissionOver() bool {
-	currentMission := game.GetCurrentMission()
-	return currentMission.IsMissionOver()
+func (game *Game) CreateTeam(team []*users.User) {
+	// TODO: implement
 }
 
 func (game *Game) EndMission() {
 	// TODO: implement
 }
 
-func (game *Game) IsGameOver() bool {
+func (game *Game) IsGameOver() (bool, string) {
 	// TODO: implement
+	return false, "no one"
 }
 
-// GetCurrentMission returns the mission with the highest
-// mission number - which should be the most current mission.
+// GetCurrentMission returns the most current mission. This should
+// be the mission with the highest mission number. This should also
+// the last one in the Missions array.
 func (game *Game) GetCurrentMission() *Mission {
-	highestMissionNum := 0
-	var selectedMission Mission
-	for _, mission := range game.Missions {
-		if mission.MissionNum > highestMissionNum {
-			selectedMission = mission
-			highestMissionNum = mission.MissionNum
-		}
+	var currentMission *Mission
+	if len(game.Missions) == 0 {
+		currentMission = nil
+	} else {
+		currentMission = game.Missions[len(game.Missions)-1]
 	}
-	return selectedMission
+	return currentMission
 }
 
 // Validate validates the game.
@@ -89,7 +100,7 @@ func (game *Game) Validate() error {
 	}
 	var numPlayers = len(game.Players)
 	if numPlayers < 5 || numPlayers > 10 {
-		return errors.New("Resistance does not support " + strconv.Atoi(numPlayers) + " players")
+		return errors.New("Resistance does not support " + strconv.Itoa(numPlayers) + " players")
 	}
 
 	return nil
@@ -105,7 +116,9 @@ func (game *Game) StartGame() error {
 	}
 	game.GameStatus = STATUS_IN_PROGRESS
 	game.assignPlayerRoles()
-	utils.PersistGame(game)
+	PersistGame(game)
+
+	return nil
 }
 
 // AssignPlayerRoles assigns the players of the game to their
@@ -117,9 +130,9 @@ func (game *Game) assignPlayerRoles() {
 
 	for index, singlePlayer := range game.Players {
 		if spies[index] {
-			singePlayer.Role = player.ROLE_SPY
+			singlePlayer.Role = ROLE_SPY
 		} else {
-			singlePlayer.Role = player.ROLE_RESISTANCE
+			singlePlayer.Role = ROLE_RESISTANCE
 		}
 	}
 }
@@ -138,22 +151,33 @@ func selectSpies(numPlayers int, numSpies int) map[int]bool {
 	return spies
 }
 
-func (game *Game) IsUserCurrentMissionLeader(currentUser *User) bool {
+func (game *Game) IsUserCurrentMissionLeader(currentUser *users.User) bool {
+	// TODO: move to mission struct
 	currentMission := game.GetCurrentMission()
-	return currentMission.Leader.User.UserId == currentUser.UserId
+	return currentMission.Leader.UserId == currentUser.UserId
 }
 
 func (game *Game) GetCurrentMissionTeamSize() int {
+	// TODO: move to mission struct
 	currentMission := game.GetCurrentMission()
 	return numPlayersOnTeam[len(game.Players)][currentMission.MissionNum]
 }
 
-func (game *Game) IsUserOnCurrentMission(currentUser *User) bool {
+func (game *Game) IsUserOnCurrentMission(currentUser *users.User) bool {
+	// TODO: move to mission struct
 	currentMission := game.GetCurrentMission()
-	for _, teamMember := range currentMission.Team {
-		if teamMember.Player.User.UserId == currentUser.UserId {
-			return true
-		}
+	if _, ok := currentMission.Team[currentUser]; ok {
+		return true
 	}
 	return false
+}
+
+func (game *Game) GetNextLeader(currentLeader *users.User) *users.User {
+	// TODO: implement
+	return nil
+}
+
+func (game *Game) GetMissionInfo() map[string]interface{} {
+	// TODO: implement
+	return make(map[string]interface{})
 }

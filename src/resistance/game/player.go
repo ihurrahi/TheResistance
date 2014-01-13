@@ -13,17 +13,21 @@ const (
 type Player struct {
 	PlayerId int
 	Game     *Game
-	User     *User
+	User     *users.User
 	Role     int
 }
 
-func NewPlayer(currentGame *Game, user *User) *Player {
+func PersistPlayer(currentPlayer *Player) {
+	// TODO: implement
+}
+
+func NewPlayer(currentGame *Game, user *users.User) *Player {
 	newPlayer := new(Player)
 	newPlayer.Game = currentGame
 	newPlayer.User = user
 	newPlayer.Role = ROLE_UNINITIALIZED
 
-	utils.PersistPlayer(newPlayer)
+	PersistPlayer(newPlayer)
 
 	return newPlayer
 }

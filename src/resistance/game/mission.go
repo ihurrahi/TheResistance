@@ -1,5 +1,9 @@
 package game
 
+import (
+	"resistance/users"
+)
+
 const (
 	RESULT_RESISTANCE = iota
 	RESULT_SPY        = iota
@@ -21,10 +25,14 @@ type Mission struct {
 	Game       *Game
 	MissionId  int
 	MissionNum int
-	Leader     *User
+	Leader     *users.User
 	Result     int
-	Team       [*User]int
-	Votes      [*User]int
+	Team       map[*users.User]int
+	Votes      map[*users.User]int
+}
+
+func PersistMission(currentMission *Mission) {
+	// TODO: implement
 }
 
 func NewMission(currentGame *Game) *Mission {
@@ -34,7 +42,7 @@ func NewMission(currentGame *Game) *Mission {
 	if currentMission == nil {
 		nextMissionNum = 1
 	} else {
-		nextMissionNum = currentMission + 1
+		nextMissionNum = currentMission.MissionNum + 1
 	}
 
 	newMission := new(Mission)
@@ -42,14 +50,14 @@ func NewMission(currentGame *Game) *Mission {
 	newMission.MissionNum = nextMissionNum
 	newMission.Leader = currentGame.GetNextLeader(currentMission.Leader)
 	newMission.Result = RESULT_NONE
-	utils.PersistMission(newMission)
+	PersistMission(newMission)
 
 	currentGame.Missions = append(currentGame.Missions, newMission)
 
 	return newMission
 }
 
-func (mission *Mission) AddVote(user *User, vote bool) {
+func (mission *Mission) AddVote(user *users.User, vote bool) {
 	if vote {
 		mission.Votes[user] = VOTE_ALLOW
 	} else {
@@ -69,14 +77,14 @@ func (mission *Mission) IsAllVotesCollected() bool {
 func (mission *Mission) IsTeamApproved() bool {
 	var approvalVotes int = 0
 	for _, singleVote := range mission.Votes {
-		if singleVote.Vote == vote.VOTE_ALLOW {
+		if singleVote == VOTE_ALLOW {
 			approvalVotes += 1
 		}
 	}
 	return (2 * approvalVotes) > len(mission.Votes)
 }
 
-func (mission *Mission) AddOutcome(user *User, outcome bool) {
+func (mission *Mission) AddOutcome(user *users.User, outcome bool) {
 	if outcome {
 		mission.Team[user] = OUTCOME_PASS
 	} else {
@@ -89,9 +97,13 @@ func (mission *Mission) AddOutcome(user *User, outcome bool) {
 // a PASS or FAIL.
 func (mission *Mission) IsMissionOver() bool {
 	for _, outcome := range mission.Team {
-		if outcome == team.OUTCOME_NONE {
+		if outcome == OUTCOME_NONE {
 			return false
 		}
 	}
 	return true
+}
+
+func (mission *Mission) CancelMission() {
+	// TODO: implement
 }
