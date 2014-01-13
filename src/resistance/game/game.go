@@ -44,23 +44,15 @@ var numPlayersOnTeam = map[int]map[int]int{
 	9:  {1: 3, 2: 4, 3: 4, 4: 5, 5: 5},
 	10: {1: 3, 2: 4, 3: 4, 4: 5, 5: 5}}
 
-func CreateGame(gameTitle string, hostId string) (int64, error) {
-	// TODO: implement
-	return 0, nil
-}
-
-func IsValidGame(gameId string, requestUser *users.User) (map[string]string, error) {
-	// TODO: implement
-	return make(map[string]string), nil
-}
-
-func PersistGame(currentGame *Game) {
-	// TODO: implement
-}
-
-func ReadGame(gameId int) *Game {
-	// TODO: implement
-	return nil
+func NewGame(gameTitle string, hostId string) *Game {
+	newGame := new(Game)
+	newGame.Title = gameTitle
+	userId, err := strconv.Atoi(hostId)
+	if err == nil {
+		newGame.Host = NewPlayer(newGame, users.LookupUserById(userId))
+	}
+	newGame.GameStatus = STATUS_LOBBY
+	return newGame
 }
 
 // AddPlayer adds the given user as a player to the game.
@@ -118,14 +110,12 @@ func (game *Game) Validate() error {
 // StartGame starts the game by:
 // 1. setting the status to IN_PROGRESS
 // 2. setting up the player roles
-// 3. persisting the game to the DB
 func (game *Game) StartGame() error {
 	if err := game.Validate(); err != nil {
 		return err
 	}
 	game.GameStatus = STATUS_IN_PROGRESS
 	game.assignPlayerRoles()
-	PersistGame(game)
 
 	return nil
 }
@@ -158,6 +148,11 @@ func selectSpies(numPlayers int, numSpies int) map[int]bool {
 	}
 
 	return spies
+}
+
+// EndGame ends the game by setting the status to be done.
+func (game *Game) EndGame() {
+	game.GameStatus = STATUS_DONE
 }
 
 // GetNextLeader gets the next leader in line to lead the next mission.

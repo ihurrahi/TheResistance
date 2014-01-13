@@ -5,6 +5,7 @@ import (
 	zmq "github.com/alecthomas/gozmq"
 	"net/http"
 	"resistance/game"
+	"resistance/persist"
 	"resistance/users"
 	"resistance/utils"
 	"strconv"
@@ -57,12 +58,6 @@ const (
 	MISSIONS_MESSAGE                   = "missions"
 )
 
-var gamesCache map[int]*game.Game
-
-func init() {
-	gamesCache = make(map[int]*game.Game)
-}
-
 // handlePlayerConnect handles the message that is sent when a player
 // first connects by loading the game page.
 func handlePlayerConnect(currentGame *game.Game, connectingPlayer *users.User, pubSocket *zmq.Socket) map[string]interface{} {
@@ -111,6 +106,7 @@ func handleStartGame(currentGame *game.Game, connectingPlayer *users.User, pubSo
 	gameId := currentGame.GameId
 
 	_ = currentGame.StartGame()
+	persist.PersistGame(currentGame)
 
 	// Sends the message that the game has officially started
 	var gameStartedMessage = make(map[string]interface{})
@@ -195,6 +191,7 @@ func handleStartMission(message map[string]interface{}, currentGame *game.Game, 
 
 	gameId := currentGame.GameId
 	currentGame.GetCurrentMission().CreateTeam(teamUsers)
+	_ = persist.PersistMission(currentGame.GetCurrentMission())
 
 	var teamApprovalMessage = make(map[string]interface{})
 	teamApprovalMessage[MESSAGE_KEY] = TEAM_APPROVAL_MESSAGE
@@ -232,8 +229,10 @@ func handleApproveTeam(message map[string]interface{}, currentGame *game.Game, c
 				sendMessageToSubscribers(gameId, missionApprovedMessage, pubSocket)
 			} else {
 				currentGame.GetCurrentMission().EndMission(game.RESULT_NONE)
+				_ = persist.PersistMission(currentGame.GetCurrentMission())
 
 				_ = game.NewMission(currentGame)
+				_ = persist.PersistMission(currentGame.GetCurrentMission())
 
 				var missionPreparationMessage = make(map[string]interface{})
 				missionPreparationMessage[MESSAGE_KEY] = MISSION_PREPARATION_MESSAGE
@@ -279,11 +278,15 @@ func handleMissionOutcome(message map[string]interface{}, currentGame *game.Game
 		if isMissionOver {
 			// it is, so set the mission result
 			currentGame.GetCurrentMission().EndMission(result)
+			_ = persist.PersistMission(currentGame.GetCurrentMission())
 
 			// now check if the game is over
 			isGameOver, winner := currentGame.IsGameOver()
 
 			if isGameOver {
+				currentGame.EndGame()
+				persist.PersistGame(currentGame)
+
 				// send game over message
 				var gameOverMessage = make(map[string]interface{})
 				gameOverMessage[MESSAGE_KEY] = GAME_OVER_MESSAGE
@@ -409,11 +412,7 @@ func main() {
 		gameId, err := strconv.Atoi(parsedMessage[GAME_ID_KEY].(string))
 
 		if err == nil {
-			currentGame := gamesCache[gameId]
-			if currentGame == nil {
-				currentGame := game.ReadGame(gameId)
-				gamesCache[gameId] = currentGame
-			}
+			currentGame := persist.ReadGame(gameId)
 
 			switch {
 			default:

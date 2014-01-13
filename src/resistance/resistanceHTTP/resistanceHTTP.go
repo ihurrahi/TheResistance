@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"resistance/game"
+	"resistance/persist"
 	"resistance/users"
 	"resistance/utils"
 	"strconv"
@@ -113,9 +114,11 @@ func createGameHandler(writer http.ResponseWriter, request *http.Request) {
 	if err != nil {
 		utils.LogMessage("Error parsing form values", utils.RESISTANCE_LOG_PATH)
 	} else if len(request.Form) > 0 {
-		gameId, err := game.CreateGame(request.FormValue(TITLE_KEY), request.FormValue(HOST_ID_KEY))
+		newGame := game.NewGame(request.FormValue(TITLE_KEY), request.FormValue(HOST_ID_KEY))
+		err := persist.PersistGame(newGame)
 		if err == nil {
-			http.Redirect(writer, request, "/game.html?gameId="+strconv.FormatInt(gameId, 10), 302)
+			gameId := newGame.GameId
+			http.Redirect(writer, request, "/game.html?gameId="+strconv.Itoa(gameId), 302)
 		} else {
 			renderTemplate(writer, CREATE_GAME_TEMPLATE, user)
 		}
@@ -149,7 +152,7 @@ func gameHandler(writer http.ResponseWriter, request *http.Request) {
 	if err != nil {
 		utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
 	} else if len(request.Form) > 0 {
-		gameInfo, err := game.IsValidGame(request.FormValue("gameId"), user)
+		gameInfo, err := persist.IsValidGame(request.FormValue("gameId"), user)
 		if err == nil {
 			renderTemplate(writer, GAME_TEMPLATE, gameInfo)
 		} else {

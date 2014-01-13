@@ -31,16 +31,14 @@ type Mission struct {
 	Votes      map[*users.User]int
 }
 
-func PersistMission(currentMission *Mission) {
-	// TODO: implement
-}
-
 func NewMission(currentGame *Game) *Mission {
 	currentMission := currentGame.GetCurrentMission()
 
 	var nextMissionNum int
 	if currentMission == nil {
 		nextMissionNum = 1
+	} else if currentMission.Result == RESULT_NONE {
+		nextMissionNum = currentMission.MissionNum
 	} else {
 		nextMissionNum = currentMission.MissionNum + 1
 	}
@@ -50,7 +48,6 @@ func NewMission(currentGame *Game) *Mission {
 	newMission.MissionNum = nextMissionNum
 	newMission.Leader = currentGame.GetNextLeader(currentMission.Leader)
 	newMission.Result = RESULT_NONE
-	PersistMission(newMission)
 
 	currentGame.Missions = append(currentGame.Missions, newMission)
 

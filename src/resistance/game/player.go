@@ -17,17 +17,11 @@ type Player struct {
 	Role     int
 }
 
-func PersistPlayer(currentPlayer *Player) {
-	// TODO: implement
-}
-
 func NewPlayer(currentGame *Game, user *users.User) *Player {
 	newPlayer := new(Player)
 	newPlayer.Game = currentGame
 	newPlayer.User = user
 	newPlayer.Role = ROLE_UNINITIALIZED
-
-	PersistPlayer(newPlayer)
 
 	return newPlayer
 }
