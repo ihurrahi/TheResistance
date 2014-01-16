@@ -43,7 +43,7 @@ func LogMessage(message string, logFileName string) {
 }
 
 // ConnectToDB connects to the local DB.
-func ConnectToDB() (*sql.DB, error) {
+func ConnectToDB() *sql.DB {
 	db, err := sql.Open("mysql", "resistance:resistance@unix(/var/run/mysql/mysql.sock)/resistance")
 
 	if err != nil {
@@ -52,7 +52,7 @@ func ConnectToDB() (*sql.DB, error) {
 	err = db.Ping()
 	if err != nil {
 		LogMessage(err.Error(), RESISTANCE_LOG_PATH)
-		return nil, err
+		panic("Error: Connection to database could not be established")
 	}
-	return db, nil
+	return db
 }

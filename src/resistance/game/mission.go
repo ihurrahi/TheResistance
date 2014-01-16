@@ -5,9 +5,9 @@ import (
 )
 
 const (
+	RESULT_NONE       = iota
 	RESULT_RESISTANCE = iota
 	RESULT_SPY        = iota
-	RESULT_NONE       = iota
 )
 
 const (
@@ -51,6 +51,8 @@ func NewMission(currentGame *Game) *Mission {
 
 	currentGame.Missions = append(currentGame.Missions, newMission)
 
+	PersistMission(newMission)
+
 	return newMission
 }
 
@@ -60,6 +62,8 @@ func (mission *Mission) CreateTeam(team []*users.User) {
 	for _, user := range team {
 		mission.Team[user] = OUTCOME_NONE
 	}
+
+	PersistMission(mission)
 }
 
 // AddVote adds the vote of approval for the chosen team from a given
@@ -135,6 +139,8 @@ func (mission *Mission) IsRequiresTwoFails() bool {
 // EndMission ends the mission by setting the result of the mission.
 func (mission *Mission) EndMission(result int) {
 	mission.Result = result
+
+	PersistMission(mission)
 }
 
 // GetMissionInfo constructs the mission information of this mission to

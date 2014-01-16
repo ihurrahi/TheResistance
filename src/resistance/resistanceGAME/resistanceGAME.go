@@ -5,7 +5,6 @@ import (
 	zmq "github.com/alecthomas/gozmq"
 	"net/http"
 	"resistance/game"
-	"resistance/persist"
 	"resistance/users"
 	"resistance/utils"
 	"strconv"
@@ -106,7 +105,6 @@ func handleStartGame(currentGame *game.Game, connectingPlayer *users.User, pubSo
 	gameId := currentGame.GameId
 
 	_ = currentGame.StartGame()
-	persist.PersistGame(currentGame)
 
 	// Sends the message that the game has officially started
 	var gameStartedMessage = make(map[string]interface{})
@@ -191,7 +189,6 @@ func handleStartMission(message map[string]interface{}, currentGame *game.Game, 
 
 	gameId := currentGame.GameId
 	currentGame.GetCurrentMission().CreateTeam(teamUsers)
-	_ = persist.PersistMission(currentGame.GetCurrentMission())
 
 	var teamApprovalMessage = make(map[string]interface{})
 	teamApprovalMessage[MESSAGE_KEY] = TEAM_APPROVAL_MESSAGE
@@ -229,10 +226,8 @@ func handleApproveTeam(message map[string]interface{}, currentGame *game.Game, c
 				sendMessageToSubscribers(gameId, missionApprovedMessage, pubSocket)
 			} else {
 				currentGame.GetCurrentMission().EndMission(game.RESULT_NONE)
-				_ = persist.PersistMission(currentGame.GetCurrentMission())
 
 				_ = game.NewMission(currentGame)
-				_ = persist.PersistMission(currentGame.GetCurrentMission())
 
 				var missionPreparationMessage = make(map[string]interface{})
 				missionPreparationMessage[MESSAGE_KEY] = MISSION_PREPARATION_MESSAGE
@@ -278,14 +273,12 @@ func handleMissionOutcome(message map[string]interface{}, currentGame *game.Game
 		if isMissionOver {
 			// it is, so set the mission result
 			currentGame.GetCurrentMission().EndMission(result)
-			_ = persist.PersistMission(currentGame.GetCurrentMission())
 
 			// now check if the game is over
 			isGameOver, winner := currentGame.IsGameOver()
 
 			if isGameOver {
 				currentGame.EndGame()
-				persist.PersistGame(currentGame)
 
 				// send game over message
 				var gameOverMessage = make(map[string]interface{})
@@ -412,7 +405,7 @@ func main() {
 		gameId, err := strconv.Atoi(parsedMessage[GAME_ID_KEY].(string))
 
 		if err == nil {
-			currentGame := persist.ReadGame(gameId)
+			currentGame := game.ReadGame(gameId)
 
 			switch {
 			default:

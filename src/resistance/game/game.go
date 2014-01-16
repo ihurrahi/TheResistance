@@ -52,6 +52,9 @@ func NewGame(gameTitle string, hostId string) *Game {
 		newGame.Host = NewPlayer(newGame, users.LookupUserById(userId))
 	}
 	newGame.GameStatus = STATUS_LOBBY
+
+	PersistGame(newGame)
+
 	return newGame
 }
 
@@ -117,6 +120,8 @@ func (game *Game) StartGame() error {
 	game.GameStatus = STATUS_IN_PROGRESS
 	game.assignPlayerRoles()
 
+	PersistGame(game)
+
 	return nil
 }
 
@@ -153,6 +158,8 @@ func selectSpies(numPlayers int, numSpies int) map[int]bool {
 // EndGame ends the game by setting the status to be done.
 func (game *Game) EndGame() {
 	game.GameStatus = STATUS_DONE
+
+	PersistGame(game)
 }
 
 // GetNextLeader gets the next leader in line to lead the next mission.
@@ -189,4 +196,59 @@ func (game *Game) GetMissionInfo() []map[string]interface{} {
 		missionInfo[index] = mission.GetMissionInfo()
 	}
 	return missionInfo
+}
+
+// IsValidGame takes in a game id and validates that it is
+// ok for the given user to join the given game
+func IsValidGame(gameIdString string, requestUser *users.User) (map[string]string, error) {
+	gameInfo := make(map[string]string)
+
+	// Error if no game id is not specified
+	if gameIdString == "" {
+		return gameInfo, errors.New("Game not specified.")
+	}
+
+	// Error if game id can't be parsed
+	gameId, err := strconv.Atoi(gameIdString)
+	if err != nil {
+		return gameInfo, errors.New("Game Id is not valid.")
+	}
+
+	requestedGame := ReadGame(gameId)
+	if requestedGame != nil {
+		gameStatus := requestedGame.GameStatus
+		switch {
+		default:
+		case gameStatus == STATUS_DONE:
+			return gameInfo, errors.New("Cannot join a game that is already done.")
+		case gameStatus == STATUS_IN_PROGRESS:
+			// make sure that the player is an actual player of the game
+			if !requestedGame.IsPlayer(requestUser) {
+				return gameInfo, errors.New("Cannot join a game that is in progress")
+			}
+		case gameStatus == STATUS_LOBBY:
+			// make sure we're not going over the limit of 10 players
+			// we are assuming the player is no longer in the list of players
+			// if the player leaves the game while in the lobby status
+			if len(requestedGame.Players) >= 10 {
+				return gameInfo, errors.New("Game has reach maximum capacity")
+			}
+		}
+	} else {
+		return gameInfo, errors.New("Game does not exist.")
+	}
+
+	// If we got here, it means we are good to go.
+	gameInfo["GameTitle"] = requestedGame.Title
+	return gameInfo, nil
+}
+
+// IsPlayer determines whether the given user is a part of that game.
+func (game *Game) IsPlayer(unknownUser *users.User) bool {
+	for _, user := range game.Players {
+		if user.User.UserId == unknownUser.UserId {
+			return true
+		}
+	}
+	return false
 }
