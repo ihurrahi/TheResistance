@@ -33,12 +33,12 @@ func faviconHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func indexHandler(writer http.ResponseWriter, request *http.Request) {
-	utils.LogMessage(request.URL.Path+" was requested", utils.RESISTANCE_LOG_PATH)
+	utils.LogMessage(request.URL.Path+" was requested", utils.RHTTP_LOG_PATH)
 
 	// If this person has a valid cookie, send them to their homepage
 	_, validUser := users.ValidateUserCookie(request.Cookies())
 	if validUser {
-		utils.LogMessage("Valid User, redirecting to /home.html", utils.RESISTANCE_LOG_PATH)
+		utils.LogMessage("Valid User, redirecting to /home.html", utils.RHTTP_LOG_PATH)
 		http.Redirect(writer, request, "/home.html", 302)
 	}
 
@@ -46,18 +46,18 @@ func indexHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func loginHandler(writer http.ResponseWriter, request *http.Request) {
-	utils.LogMessage(request.URL.Path+" was requested", utils.RESISTANCE_LOG_PATH)
+	utils.LogMessage(request.URL.Path+" was requested", utils.RHTTP_LOG_PATH)
 
 	// If this person has a valid cookie, send them to their homepage instead
 	_, validUser := users.ValidateUserCookie(request.Cookies())
 	if validUser {
-		utils.LogMessage("Valid User, redirecting to /home.html", utils.RESISTANCE_LOG_PATH)
+		utils.LogMessage("Valid User, redirecting to /home.html", utils.RHTTP_LOG_PATH)
 		http.Redirect(writer, request, "/home.html", 302)
 	}
 
 	err := request.ParseForm()
 	if err != nil {
-		utils.LogMessage("Error parsing form values", utils.RESISTANCE_LOG_PATH)
+		utils.LogMessage("Error parsing form values", utils.RHTTP_LOG_PATH)
 	} else if len(request.Form) > 0 {
 		cookie, validUser := users.ValidateUser(request)
 		if validUser {
@@ -75,11 +75,11 @@ func loginHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func signupHandler(writer http.ResponseWriter, request *http.Request) {
-	utils.LogMessage(request.URL.Path+" was requested", utils.RESISTANCE_LOG_PATH)
+	utils.LogMessage(request.URL.Path+" was requested", utils.RHTTP_LOG_PATH)
 
 	err := request.ParseForm()
 	if err != nil {
-		utils.LogMessage("Error parsing form values", utils.RESISTANCE_LOG_PATH)
+		utils.LogMessage("Error parsing form values", utils.RHTTP_LOG_PATH)
 	} else if len(request.Form) > 0 {
 		hasSignUpError, errorMessage := users.UserSignUp(request)
 		if hasSignUpError {
@@ -97,7 +97,7 @@ func signupHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func homeHandler(writer http.ResponseWriter, request *http.Request) {
-	utils.LogMessage(request.URL.Path+" was requested", utils.RESISTANCE_LOG_PATH)
+	utils.LogMessage(request.URL.Path+" was requested", utils.RHTTP_LOG_PATH)
 
 	user := requiresLogin(writer, request)
 
@@ -105,13 +105,13 @@ func homeHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func createGameHandler(writer http.ResponseWriter, request *http.Request) {
-	utils.LogMessage(request.URL.Path+" was requested", utils.RESISTANCE_LOG_PATH)
+	utils.LogMessage(request.URL.Path+" was requested", utils.RHTTP_LOG_PATH)
 
 	user := requiresLogin(writer, request)
 
 	err := request.ParseForm()
 	if err != nil {
-		utils.LogMessage("Error parsing form values", utils.RESISTANCE_LOG_PATH)
+		utils.LogMessage("Error parsing form values", utils.RHTTP_LOG_PATH)
 	} else if len(request.Form) > 0 {
 		newGame := game.NewGame(request.FormValue(TITLE_KEY), request.FormValue(HOST_ID_KEY))
 		if newGame != nil {
@@ -126,7 +126,7 @@ func createGameHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func lobbyHandler(writer http.ResponseWriter, request *http.Request) {
-	utils.LogMessage(request.URL.Path+" was requested", utils.RESISTANCE_LOG_PATH)
+	utils.LogMessage(request.URL.Path+" was requested", utils.RHTTP_LOG_PATH)
 
 	user := requiresLogin(writer, request)
 
@@ -134,7 +134,7 @@ func lobbyHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func historyHandler(writer http.ResponseWriter, request *http.Request) {
-	utils.LogMessage(request.URL.Path+" was requested", utils.RESISTANCE_LOG_PATH)
+	utils.LogMessage(request.URL.Path+" was requested", utils.RHTTP_LOG_PATH)
 
 	user := requiresLogin(writer, request)
 
@@ -142,13 +142,13 @@ func historyHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func gameHandler(writer http.ResponseWriter, request *http.Request) {
-	utils.LogMessage(request.URL.Path+" was requested", utils.RESISTANCE_LOG_PATH)
+	utils.LogMessage(request.URL.Path+" was requested", utils.RHTTP_LOG_PATH)
 
 	user := requiresLogin(writer, request)
 
 	err := request.ParseForm()
 	if err != nil {
-		utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
+		utils.LogMessage(err.Error(), utils.RHTTP_LOG_PATH)
 	} else if len(request.Form) > 0 {
 		gameInfo, err := game.IsValidGame(request.FormValue("gameId"), user)
 		if err == nil {
@@ -172,7 +172,7 @@ func requiresLogin(writer http.ResponseWriter, request *http.Request) *users.Use
 	// If this person has an invalid cookie, send them to the login page instead
 	user, validUser := users.ValidateUserCookie(request.Cookies())
 	if !validUser {
-		utils.LogMessage("Invalid User, redirecting to /login.html", utils.RESISTANCE_LOG_PATH)
+		utils.LogMessage("Invalid User, redirecting to /login.html", utils.RHTTP_LOG_PATH)
 		http.Redirect(writer, request, "/login.html", 302)
 	}
 	return user
@@ -193,7 +193,7 @@ func main() {
 	http.Handle("/game.js", http.FileServer(http.Dir("src/resistance/frontend")))
 	http.Handle("/game.css", http.FileServer(http.Dir("src/resistance/frontend")))
 
-	utils.LogMessage("Starting TheResistance HTTP Server...", utils.RESISTANCE_LOG_PATH)
+	utils.LogMessage("Starting TheResistance HTTP Server...", utils.RHTTP_LOG_PATH)
 
 	http.ListenAndServe(":8080", nil)
 }

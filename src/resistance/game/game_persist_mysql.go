@@ -2,7 +2,9 @@ package game
 
 import (
 	"database/sql"
+	"resistance/users"
 	"resistance/utils"
+	"strconv"
 )
 
 const (
@@ -45,12 +47,16 @@ const (
 )
 
 const (
-	GAME_PERSIST_QUERY = "INSERT INTO " + GAMES_TABLE +
-		" (" + GAMES_ID_COLUMN + "," +
-		GAMES_TITLE_COLUMN + "," +
+	GAME_CREATE_QUERY = "INSERT INTO " + GAMES_TABLE +
+		" (" + GAMES_TITLE_COLUMN + "," +
 		GAMES_HOST_COLUMN + "," +
 		GAMES_STATUS_COLUMN + ") " +
-		"VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE"
+		"VALUES (?, ?, ?)"
+	GAME_PERSIST_QUERY = "UPDATE " + GAMES_TABLE +
+		" (" + GAMES_TITLE_COLUMN + "," +
+		GAMES_HOST_COLUMN + "," +
+		GAMES_STATUS_COLUMN + ") " +
+		"VALUES (?, ?, ?) WHERE " + GAMES_ID_COLUMN + " = ?"
 	PLAYER_PERSIST_QUERY = "INSERT INTO " + PLAYERS_TABLE +
 		" (" + PLAYERS_GAME_ID_COLUMN + "," +
 		PLAYERS_USER_ID_COLUMN + "," +
@@ -75,6 +81,26 @@ const (
 		"VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE"
 )
 
+const (
+	GAME_READ_QUERY = "SELECT " +
+		GAMES_TABLE + "." + GAMES_TITLE_COLUMN + "," +
+		users.USERS_TABLE + "." + users.USERS_ID_COLUMN + "," +
+		users.USERS_TABLE + "." + users.USERS_USERNAME_COLUMN + "," +
+		GAMES_TABLE + "." + GAMES_STATUS_COLUMN +
+		" FROM " + GAMES_TABLE + " LEFT JOIN " + users.USERS_TABLE + " ON " +
+		users.USERS_TABLE + "." + users.USERS_ID_COLUMN + " = " + GAMES_TABLE + "." + GAMES_HOST_COLUMN +
+		" WHERE " + GAMES_ID_COLUMN + " = ?"
+	PLAYERS_READ_QUERY = "SELECT " +
+		PLAYERS_TABLE + "." + PLAYERS_ROLE_COLUMN + "," +
+		users.USERS_TABLE + "." + users.USERS_ID_COLUMN + "," +
+		users.USERS_TABLE + "." + users.USERS_USERNAME_COLUMN +
+		" FROM " + PLAYERS_TABLE + " LEFT JOIN " + users.USERS_TABLE + " ON " +
+		users.USERS_TABLE + "." + users.USERS_ID_COLUMN + " = " + PLAYERS_TABLE + "." + PLAYERS_USER_ID_COLUMN +
+		" WHERE " + PLAYERS_GAME_ID_COLUMN + " = ?"
+	MISSION_READ_QUERY = "SELECT * FROM " + MISSIONS_TABLE +
+		" WHERE " + MISSIONS_GAME_ID_COLUMN + " = ?"
+)
+
 var gamesCache map[int]*Game
 var db *sql.DB
 
@@ -87,6 +113,7 @@ func init() {
 }
 
 func PersistPlayer(currentPlayer *Player) error {
+	utils.LogMessage("Persisting a player...", utils.RESISTANCE_LOG_PATH)
 	_, err := db.Exec(PLAYER_PERSIST_QUERY,
 		currentPlayer.Game.GameId,
 		currentPlayer.User.UserId,
@@ -99,6 +126,7 @@ func PersistPlayer(currentPlayer *Player) error {
 }
 
 func PersistMission(currentMission *Mission) error {
+	utils.LogMessage("Persisting a mission...", utils.RESISTANCE_LOG_PATH)
 	// Persist the actual mission
 	_, err := db.Exec(MISSION_PERSIST_QUERY,
 		currentMission.MissionId,
@@ -152,12 +180,27 @@ func persistVotes(currentMission *Mission) error {
 }
 
 func PersistGame(currentGame *Game) error {
+	utils.LogMessage("Persisting a game...", utils.RESISTANCE_LOG_PATH)
 	// Persist the game itself
-	_, err := db.Exec(GAME_PERSIST_QUERY,
-		currentGame.GameId,
-		currentGame.Title,
-		currentGame.Host.User.UserId,
-		currentGame.GameStatus)
+	var err error
+	if currentGame.GameId == 0 {
+		result, err := db.Exec(GAME_CREATE_QUERY,
+			currentGame.Title,
+			currentGame.Host.UserId,
+			currentGame.GameStatus)
+		if err == nil {
+			newGameId, err := result.LastInsertId()
+			if err == nil {
+				currentGame.GameId = int(newGameId)
+			}
+		}
+	} else {
+		_, err = db.Exec(GAME_PERSIST_QUERY,
+			currentGame.Title,
+			currentGame.Host.UserId,
+			currentGame.GameStatus,
+			currentGame.GameId)
+	}
 	if err != nil {
 		return err
 	}
@@ -178,6 +221,8 @@ func PersistGame(currentGame *Game) error {
 		}
 	}
 
+	// Finished persisting, make sure that this game is in the cache
+	gamesCache[currentGame.GameId] = currentGame
 	return nil
 }
 
@@ -185,15 +230,46 @@ func PersistGame(currentGame *Game) error {
 // take advantage of the in memory cache before hitting the database.
 // Returns nil if not found.
 func ReadGame(gameId int) *Game {
+	utils.LogMessage("Reading game id "+strconv.Itoa(gameId), utils.RESISTANCE_LOG_PATH)
+	utils.LogMessage("Size of gamesCache:"+strconv.Itoa(len(gamesCache)), utils.RESISTANCE_LOG_PATH)
 	retrievedGame := gamesCache[gameId]
 
 	if retrievedGame == nil {
 		retrievedGame = retrieveGame(gameId)
+
+		// Update the cache
+		if retrievedGame != nil {
+			utils.LogMessage("Updated the cache", utils.RESISTANCE_LOG_PATH)
+			gamesCache[gameId] = retrievedGame
+		}
 	}
 
 	return retrievedGame
 }
 
+// retrieveGame hits the DB to find the game
 func retrieveGame(gameId int) *Game {
-	return nil
+	utils.LogMessage("Reading game id "+strconv.Itoa(gameId)+" from DB", utils.RESISTANCE_LOG_PATH)
+
+	var retrievedGame *Game
+
+	var gameTitle string
+	var hostId int
+	var hostUsername string
+	var gameStatus int
+
+	err := db.QueryRow(GAME_READ_QUERY, gameId).Scan(&gameTitle, &hostId, &hostUsername, &gameStatus)
+	if err == nil {
+		retrievedGame = new(Game)
+		retrievedGame.GameId = gameId
+		retrievedGame.GameStatus = gameStatus
+
+		user := new(users.User)
+		user.UserId = hostId
+		user.Username = hostUsername
+
+		retrievedGame.Host = user
+	}
+
+	return retrievedGame
 }

@@ -60,6 +60,8 @@ const (
 // handlePlayerConnect handles the message that is sent when a player
 // first connects by loading the game page.
 func handlePlayerConnect(currentGame *game.Game, connectingPlayer *users.User, pubSocket *zmq.Socket) map[string]interface{} {
+	utils.LogMessage("Player "+strconv.Itoa(connectingPlayer.UserId)+" connecting", utils.RGAME_LOG_PATH)
+
 	var returnMessage = make(map[string]interface{})
 	gameId := currentGame.GameId
 
@@ -77,7 +79,7 @@ func handlePlayerConnect(currentGame *game.Game, connectingPlayer *users.User, p
 	returnMessage[ACCEPT_USER_KEY] = true
 	returnMessage[USER_ID_KEY] = connectingPlayer.UserId
 
-	if currentGame.Host.User.UserId == connectingPlayer.UserId {
+	if currentGame.Host.UserId == connectingPlayer.UserId {
 		returnMessage[IS_HOST_KEY] = true
 	}
 
@@ -183,7 +185,7 @@ func handleStartMission(message map[string]interface{}, currentGame *game.Game, 
 			teamUsernames[i] = user.Username
 			teamUsers[i] = user
 		} else {
-			utils.LogMessage("User Id for team not found: "+teamId, utils.RESISTANCE_LOG_PATH)
+			utils.LogMessage("User Id for team not found: "+teamId, utils.RGAME_LOG_PATH)
 		}
 	}
 
@@ -330,10 +332,10 @@ func getPlayerUsernames(currentGame *game.Game) []string {
 func parseMessage(msg []byte) map[string]interface{} {
 	var parsedMessage = make(map[string]interface{})
 
-	utils.LogMessage(string(msg), utils.RESISTANCE_LOG_PATH)
+	utils.LogMessage(string(msg), utils.RGAME_LOG_PATH)
 	err := json.Unmarshal(msg, &parsedMessage)
 	if err != nil {
-		utils.LogMessage("Error parsing message: "+string(msg), utils.RESISTANCE_LOG_PATH)
+		utils.LogMessage("Error parsing message: "+string(msg), utils.RGAME_LOG_PATH)
 	}
 
 	return parsedMessage
@@ -346,7 +348,7 @@ func getUser(parsedMessage map[string]interface{}) *users.User {
 	cookies[0] = &http.Cookie{Name: parsedCookie[0], Value: parsedCookie[1]}
 	user, success := users.ValidateUserCookie(cookies)
 	if !success {
-		utils.LogMessage("Something went wrong when validating the user", utils.RESISTANCE_LOG_PATH)
+		utils.LogMessage("Something went wrong when validating the user", utils.RGAME_LOG_PATH)
 		return nil
 	}
 
@@ -375,7 +377,7 @@ func sendMessageToSubscribers(gameId int, message map[string]interface{}, pubSoc
 		// Send out updated users to all subscribers to this game
 		pubSocket.SendMultipart([][]byte{[]byte(strconv.Itoa(gameId)), []byte(pubMessage)}, 0)
 
-		utils.LogMessage("Sent message to all subscribers to game "+strconv.Itoa(gameId), utils.RESISTANCE_LOG_PATH)
+		utils.LogMessage("Sent message to all subscribers to game "+strconv.Itoa(gameId), utils.RGAME_LOG_PATH)
 	}
 	// TODO: error check in case marshalling failed
 }
@@ -391,9 +393,9 @@ func main() {
 	defer pubSocket.Close()
 
 	zmqSocket.Bind("tcp://*:" + utils.GAME_REP_REQ_PORT)
-	utils.LogMessage("Game server started, bound to port "+utils.GAME_REP_REQ_PORT, utils.RESISTANCE_LOG_PATH)
+	utils.LogMessage("Game server started, bound to port "+utils.GAME_REP_REQ_PORT, utils.RGAME_LOG_PATH)
 	pubSocket.Bind("tcp://*:" + utils.GAME_PUB_SUB_PORT)
-	utils.LogMessage("Game server started, bound to port "+utils.GAME_PUB_SUB_PORT, utils.RESISTANCE_LOG_PATH)
+	utils.LogMessage("Game server started, bound to port "+utils.GAME_PUB_SUB_PORT, utils.RGAME_LOG_PATH)
 
 	for {
 		reply, _ := zmqSocket.Recv(0)
@@ -435,7 +437,7 @@ func main() {
 
 		marshalledMessage, err := json.Marshal(returnMessage)
 		if err != nil {
-			utils.LogMessage("Error marshalling response", utils.RESISTANCE_LOG_PATH)
+			utils.LogMessage("Error marshalling response", utils.RGAME_LOG_PATH)
 			marshalledMessage = make([]byte, 0)
 		}
 		zmqSocket.Send(marshalledMessage, 0)

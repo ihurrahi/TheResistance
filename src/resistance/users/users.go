@@ -12,6 +12,12 @@ const (
 	COOKIE_NAME         = "RC"
 )
 
+const (
+	USERS_TABLE           = "users"
+	USERS_ID_COLUMN       = "user_id"
+	USERS_USERNAME_COLUMN = "username"
+)
+
 type User struct {
 	Username string
 	UserId   int

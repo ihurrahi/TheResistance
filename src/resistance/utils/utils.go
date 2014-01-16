@@ -15,7 +15,9 @@ const (
 	GAME_PUB_SUB_PORT   = "8083"
 	RESISTANCE_LOG_PATH = "logs/resistance.log"
 	USER_LOG_PATH       = "logs/userLog.log"
-	GAME_LOG_PATH       = "logs/gameLog.log"
+	RGAME_LOG_PATH      = "logs/rGAME.log"
+	RHTTP_LOG_PATH      = "logs/rHTTP.log"
+	RWSP_LOG_PATH       = "logs/rWSP.log"
 )
 
 // createLogger creates a logger that will log to the given file
@@ -44,7 +46,7 @@ func LogMessage(message string, logFileName string) {
 
 // ConnectToDB connects to the local DB.
 func ConnectToDB() *sql.DB {
-	db, err := sql.Open("mysql", "resistance:resistance@unix(/var/run/mysql/mysql.sock)/resistance")
+	db, err := sql.Open("mysql", "resistance:resistance@unix(/var/lib/mysql/mysql.sock)/resistance")
 
 	if err != nil {
 		LogMessage(err.Error(), RESISTANCE_LOG_PATH)

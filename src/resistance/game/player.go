@@ -11,10 +11,9 @@ const (
 )
 
 type Player struct {
-	PlayerId int
-	Game     *Game
-	User     *users.User
-	Role     int
+	Game *Game
+	User *users.User
+	Role int
 }
 
 func NewPlayer(currentGame *Game, user *users.User) *Player {

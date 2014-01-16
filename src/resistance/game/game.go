@@ -18,7 +18,7 @@ const (
 type Game struct {
 	GameId     int
 	Title      string
-	Host       *Player
+	Host       *users.User
 	GameStatus int
 	Missions   []*Mission
 	Players    []*Player
@@ -49,11 +49,14 @@ func NewGame(gameTitle string, hostId string) *Game {
 	newGame.Title = gameTitle
 	userId, err := strconv.Atoi(hostId)
 	if err == nil {
-		newGame.Host = NewPlayer(newGame, users.LookupUserById(userId))
+		newGame.Host = users.LookupUserById(userId)
 	}
 	newGame.GameStatus = STATUS_LOBBY
 
-	PersistGame(newGame)
+	err = PersistGame(newGame)
+	if err != nil {
+		utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
+	}
 
 	return newGame
 }
@@ -120,7 +123,10 @@ func (game *Game) StartGame() error {
 	game.GameStatus = STATUS_IN_PROGRESS
 	game.assignPlayerRoles()
 
-	PersistGame(game)
+	err := PersistGame(game)
+	if err != nil {
+		utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
+	}
 
 	return nil
 }
@@ -159,7 +165,10 @@ func selectSpies(numPlayers int, numSpies int) map[int]bool {
 func (game *Game) EndGame() {
 	game.GameStatus = STATUS_DONE
 
-	PersistGame(game)
+	err := PersistGame(game)
+	if err != nil {
+		utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
+	}
 }
 
 // GetNextLeader gets the next leader in line to lead the next mission.

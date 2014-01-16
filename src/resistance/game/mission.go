@@ -2,6 +2,7 @@ package game
 
 import (
 	"resistance/users"
+	"resistance/utils"
 )
 
 const (
@@ -51,7 +52,10 @@ func NewMission(currentGame *Game) *Mission {
 
 	currentGame.Missions = append(currentGame.Missions, newMission)
 
-	PersistMission(newMission)
+	err := PersistMission(newMission)
+	if err != nil {
+		utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
+	}
 
 	return newMission
 }
@@ -63,7 +67,10 @@ func (mission *Mission) CreateTeam(team []*users.User) {
 		mission.Team[user] = OUTCOME_NONE
 	}
 
-	PersistMission(mission)
+	err := PersistMission(mission)
+	if err != nil {
+		utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
+	}
 }
 
 // AddVote adds the vote of approval for the chosen team from a given
@@ -140,7 +147,10 @@ func (mission *Mission) IsRequiresTwoFails() bool {
 func (mission *Mission) EndMission(result int) {
 	mission.Result = result
 
-	PersistMission(mission)
+	err := PersistMission(mission)
+	if err != nil {
+		utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
+	}
 }
 
 // GetMissionInfo constructs the mission information of this mission to
