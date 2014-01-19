@@ -1,7 +1,8 @@
-package game
+package persist
 
 import (
 	"database/sql"
+	"resistance/game"
 	"resistance/users"
 	"resistance/utils"
 	"strconv"
@@ -101,20 +102,24 @@ const (
 		" WHERE " + MISSIONS_GAME_ID_COLUMN + " = ?"
 )
 
-var gamesCache map[int]*Game
-var db *sql.DB
-
-func init() {
-	// Initialize in memory cache
-	gamesCache = make(map[int]*Game)
-
-	// Initialize database. Will panic if this fails.
-	db = utils.ConnectToDB()
+type Persister struct {
+	gamesCache map[int]*game.Game
+	db         *sql.DB
 }
 
-func PersistPlayer(currentPlayer *Player) error {
+func NewPersister() *Persister {
+	// Initialize in memory cache
+	gamesCache := make(map[int]*game.Game)
+
+	// Initialize database. Will panic if this fails.
+	db := utils.ConnectToDB()
+
+	return &Persister{gamesCache, db}
+}
+
+func (persister *Persister) persistPlayer(currentPlayer *game.Player) error {
 	utils.LogMessage("Persisting a player...", utils.RESISTANCE_LOG_PATH)
-	_, err := db.Exec(PLAYER_PERSIST_QUERY,
+	_, err := persister.db.Exec(PLAYER_PERSIST_QUERY,
 		currentPlayer.Game.GameId,
 		currentPlayer.User.UserId,
 		currentPlayer.Role)
@@ -125,10 +130,10 @@ func PersistPlayer(currentPlayer *Player) error {
 	return nil
 }
 
-func PersistMission(currentMission *Mission) error {
+func (persister *Persister) PersistMission(currentMission *game.Mission) error {
 	utils.LogMessage("Persisting a mission...", utils.RESISTANCE_LOG_PATH)
 	// Persist the actual mission
-	_, err := db.Exec(MISSION_PERSIST_QUERY,
+	_, err := persister.db.Exec(MISSION_PERSIST_QUERY,
 		currentMission.MissionId,
 		currentMission.Game.GameId,
 		currentMission.MissionNum,
@@ -139,13 +144,13 @@ func PersistMission(currentMission *Mission) error {
 	}
 
 	// Persist the team that went on this mission. Stop on error.
-	err = persistTeam(currentMission)
+	err = persister.persistTeam(currentMission)
 	if err != nil {
 		return err
 	}
 
 	// Persist the votes that were cast for this mission . Stop on error.
-	err = persistVotes(currentMission)
+	err = persister.persistVotes(currentMission)
 	if err != nil {
 		return err
 	}
@@ -153,9 +158,9 @@ func PersistMission(currentMission *Mission) error {
 	return nil
 }
 
-func persistTeam(currentMission *Mission) error {
+func (persister *Persister) persistTeam(currentMission *game.Mission) error {
 	for teamMember, outcome := range currentMission.Team {
-		_, err := db.Exec(TEAM_PERSIST_QUERY,
+		_, err := persister.db.Exec(TEAM_PERSIST_QUERY,
 			currentMission.MissionId,
 			teamMember.UserId,
 			outcome)
@@ -166,9 +171,9 @@ func persistTeam(currentMission *Mission) error {
 	return nil
 }
 
-func persistVotes(currentMission *Mission) error {
+func (persister *Persister) persistVotes(currentMission *game.Mission) error {
 	for user, vote := range currentMission.Votes {
-		_, err := db.Exec(VOTE_PERSIST_QUERY,
+		_, err := persister.db.Exec(VOTE_PERSIST_QUERY,
 			currentMission.MissionId,
 			user.UserId,
 			vote)
@@ -179,12 +184,12 @@ func persistVotes(currentMission *Mission) error {
 	return nil
 }
 
-func PersistGame(currentGame *Game) error {
+func (persister *Persister) PersistGame(currentGame *game.Game) error {
 	utils.LogMessage("Persisting a game...", utils.RESISTANCE_LOG_PATH)
 	// Persist the game itself
 	var err error
 	if currentGame.GameId == 0 {
-		result, err := db.Exec(GAME_CREATE_QUERY,
+		result, err := persister.db.Exec(GAME_CREATE_QUERY,
 			currentGame.Title,
 			currentGame.Host.UserId,
 			currentGame.GameStatus)
@@ -195,7 +200,7 @@ func PersistGame(currentGame *Game) error {
 			}
 		}
 	} else {
-		_, err = db.Exec(GAME_PERSIST_QUERY,
+		_, err = persister.db.Exec(GAME_PERSIST_QUERY,
 			currentGame.Title,
 			currentGame.Host.UserId,
 			currentGame.GameStatus,
@@ -207,7 +212,7 @@ func PersistGame(currentGame *Game) error {
 
 	// Persist all the players. Stop on error.
 	for _, player := range currentGame.Players {
-		err = PersistPlayer(player)
+		err = persister.persistPlayer(player)
 		if err != nil {
 			return err
 		}
@@ -215,32 +220,38 @@ func PersistGame(currentGame *Game) error {
 
 	// Persist all the missions. Stop on error.
 	for _, mission := range currentGame.Missions {
-		PersistMission(mission)
+		persister.PersistMission(mission)
 		if err != nil {
 			return err
 		}
 	}
 
 	// Finished persisting, make sure that this game is in the cache
-	gamesCache[currentGame.GameId] = currentGame
+	persister.gamesCache[currentGame.GameId] = currentGame
 	return nil
 }
 
 // ReadGame returns the game corresponding to the given gameId. Tries to
 // take advantage of the in memory cache before hitting the database.
 // Returns nil if not found.
-func ReadGame(gameId int) *Game {
+func (persister *Persister) ReadGame(gameId int) *game.Game {
 	utils.LogMessage("Reading game id "+strconv.Itoa(gameId), utils.RESISTANCE_LOG_PATH)
-	utils.LogMessage("Size of gamesCache:"+strconv.Itoa(len(gamesCache)), utils.RESISTANCE_LOG_PATH)
-	retrievedGame := gamesCache[gameId]
+	utils.LogMessage("Size of gamesCache:"+strconv.Itoa(len(persister.gamesCache)), utils.RESISTANCE_LOG_PATH)
+
+	// Don't even try if not a valid game id
+	if gameId < 0 {
+		return nil
+	}
+
+	retrievedGame := persister.gamesCache[gameId]
 
 	if retrievedGame == nil {
-		retrievedGame = retrieveGame(gameId)
+		retrievedGame = persister.retrieveGame(gameId)
 
 		// Update the cache
 		if retrievedGame != nil {
 			utils.LogMessage("Updated the cache", utils.RESISTANCE_LOG_PATH)
-			gamesCache[gameId] = retrievedGame
+			persister.gamesCache[gameId] = retrievedGame
 		}
 	}
 
@@ -248,19 +259,20 @@ func ReadGame(gameId int) *Game {
 }
 
 // retrieveGame hits the DB to find the game
-func retrieveGame(gameId int) *Game {
+func (persister *Persister) retrieveGame(gameId int) *game.Game {
 	utils.LogMessage("Reading game id "+strconv.Itoa(gameId)+" from DB", utils.RESISTANCE_LOG_PATH)
 
-	var retrievedGame *Game
+	var retrievedGame *game.Game
 
 	var gameTitle string
 	var hostId int
 	var hostUsername string
 	var gameStatus int
 
-	err := db.QueryRow(GAME_READ_QUERY, gameId).Scan(&gameTitle, &hostId, &hostUsername, &gameStatus)
+	err := persister.db.QueryRow(GAME_READ_QUERY, gameId).Scan(&gameTitle, &hostId, &hostUsername, &gameStatus)
 	if err == nil {
-		retrievedGame = new(Game)
+		retrievedGame = new(game.Game)
+		retrievedGame.Title = gameTitle
 		retrievedGame.GameId = gameId
 		retrievedGame.GameStatus = gameStatus
 
@@ -269,6 +281,8 @@ func retrieveGame(gameId int) *Game {
 		user.Username = hostUsername
 
 		retrievedGame.Host = user
+
+		retrievedGame.Persister = persister
 	}
 
 	return retrievedGame

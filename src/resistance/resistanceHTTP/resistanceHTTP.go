@@ -1,11 +1,12 @@
 package main
 
 import (
+	"encoding/json"
+	zmq "github.com/alecthomas/gozmq"
 	"html/template"
 	"io"
 	"net/http"
 	"path/filepath"
-	"resistance/game"
 	"resistance/users"
 	"resistance/utils"
 	"strconv"
@@ -27,6 +28,8 @@ const (
 	TITLE_KEY   = "title"
 	HOST_ID_KEY = "host"
 )
+
+var zmqContext *zmq.Context
 
 func faviconHandler(writer http.ResponseWriter, request *http.Request) {
 	// no-op
@@ -113,10 +116,19 @@ func createGameHandler(writer http.ResponseWriter, request *http.Request) {
 	if err != nil {
 		utils.LogMessage("Error parsing form values", utils.RHTTP_LOG_PATH)
 	} else if len(request.Form) > 0 {
-		newGame := game.NewGame(request.FormValue(TITLE_KEY), request.FormValue(HOST_ID_KEY))
-		if newGame != nil {
-			gameId := newGame.GameId
-			http.Redirect(writer, request, "/game.html?gameId="+strconv.Itoa(gameId), 302)
+		data := make(map[string]interface{})
+		data["title"] = request.FormValue(TITLE_KEY)
+		data["hostId"] = request.FormValue(HOST_ID_KEY)
+		cookie, err := request.Cookie(users.COOKIE_NAME)
+		if err == nil {
+			data["userCookie"] = cookie.Name + "=" + cookie.Value
+		}
+		data["gameId"] = "-1"
+		parsedReply := sendToGameBackend("createGame", data)
+		newGameId, ok := parsedReply["gameId"].(float64)
+		//newGame := game.NewGame(request.FormValue(TITLE_KEY), request.FormValue(HOST_ID_KEY))
+		if ok && int(newGameId) > 0 {
+			http.Redirect(writer, request, "/game.html?gameId="+strconv.Itoa(int(newGameId)), 302)
 		} else {
 			renderTemplate(writer, CREATE_GAME_TEMPLATE, user)
 		}
@@ -150,8 +162,16 @@ func gameHandler(writer http.ResponseWriter, request *http.Request) {
 	if err != nil {
 		utils.LogMessage(err.Error(), utils.RHTTP_LOG_PATH)
 	} else if len(request.Form) > 0 {
-		gameInfo, err := game.IsValidGame(request.FormValue("gameId"), user)
+		data := make(map[string]interface{})
+		data["gameId"] = request.FormValue("gameId")
+		data["userId"] = user.UserId
+		cookie, err := request.Cookie(users.COOKIE_NAME)
 		if err == nil {
+			data["userCookie"] = cookie.Name + "=" + cookie.Value
+		}
+		gameInfo := sendToGameBackend("isValidGame", data)
+		if gameInfo["error"] == nil {
+			utils.LogMessage(gameInfo["GameTitle"].(string), utils.RESISTANCE_LOG_PATH)
 			renderTemplate(writer, GAME_TEMPLATE, gameInfo)
 		} else {
 			// TODO: how do i redirect to home and pass in an error message?
@@ -178,7 +198,32 @@ func requiresLogin(writer http.ResponseWriter, request *http.Request) *users.Use
 	return user
 }
 
+func sendToGameBackend(msg string, data map[string]interface{}) map[string]interface{} {
+	zmqSocket, _ := zmqContext.NewSocket(zmq.REQ)
+	defer zmqSocket.Close()
+
+	zmqSocket.Connect("tcp://localhost:" + utils.GAME_REP_REQ_PORT)
+	utils.LogMessage("HTTP connected to port "+utils.GAME_REP_REQ_PORT, utils.RHTTP_LOG_PATH)
+
+	data["message"] = msg
+	newData, _ := json.Marshal(data)
+	zmqSocket.Send(newData, 0)
+	utils.LogMessage("Sending to game backend", utils.RHTTP_LOG_PATH)
+	utils.LogMessage(string(newData), utils.RHTTP_LOG_PATH)
+
+	reply, _ := zmqSocket.Recv(0)
+	utils.LogMessage("Reply received", utils.RHTTP_LOG_PATH)
+	utils.LogMessage(string(reply), utils.RHTTP_LOG_PATH)
+
+	var parsedReply map[string]interface{}
+	json.Unmarshal(reply, &parsedReply)
+
+	return parsedReply
+}
+
 func main() {
+	zmqContext, _ = zmq.NewContext()
+	defer zmqContext.Close()
 
 	http.HandleFunc("/", indexHandler)
 	http.HandleFunc("/favicon.ico", faviconHandler)

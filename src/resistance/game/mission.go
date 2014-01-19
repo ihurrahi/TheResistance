@@ -52,7 +52,7 @@ func NewMission(currentGame *Game) *Mission {
 
 	currentGame.Missions = append(currentGame.Missions, newMission)
 
-	err := PersistMission(newMission)
+	err := currentGame.Persister.PersistMission(newMission)
 	if err != nil {
 		utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
 	}
@@ -67,7 +67,7 @@ func (mission *Mission) CreateTeam(team []*users.User) {
 		mission.Team[user] = OUTCOME_NONE
 	}
 
-	err := PersistMission(mission)
+	err := mission.Game.Persister.PersistMission(mission)
 	if err != nil {
 		utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
 	}
@@ -147,7 +147,7 @@ func (mission *Mission) IsRequiresTwoFails() bool {
 func (mission *Mission) EndMission(result int) {
 	mission.Result = result
 
-	err := PersistMission(mission)
+	err := mission.Game.Persister.PersistMission(mission)
 	if err != nil {
 		utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
 	}
