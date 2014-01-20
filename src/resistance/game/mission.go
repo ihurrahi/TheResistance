@@ -6,23 +6,23 @@ import (
 )
 
 const (
-	RESULT_NONE            = iota
-	RESULT_NONE_NAME       = ""
-	RESULT_RESISTANCE      = iota
-	RESULT_RESISTANCE_NAME = "Success"
-	RESULT_SPY             = iota
-	RESULT_SPY_NAME        = "Fail"
+	WINNER_NONE            = ""
+	WINNER_NONE_NAME       = ""
+	WINNER_RESISTANCE      = "R"
+	WINNER_RESISTANCE_NAME = "Success"
+	WINNER_SPY             = "S"
+	WINNER_SPY_NAME        = "Fail"
 )
 
 const (
-	OUTCOME_NONE = iota
-	OUTCOME_PASS = iota
-	OUTCOME_FAIL = iota
+	OUTCOME_NONE = ""
+	OUTCOME_PASS = "P"
+	OUTCOME_FAIL = "F"
 )
 
 const (
-	VOTE_ALLOW = iota
-	VOTE_VETO  = iota
+	VOTE_ALLOW = "A"
+	VOTE_VETO  = "V"
 )
 
 type Mission struct {
@@ -30,9 +30,9 @@ type Mission struct {
 	MissionId  int
 	MissionNum int
 	Leader     *users.User
-	Result     int
-	Team       map[int]int
-	Votes      map[int]int
+	Winner     string
+	Team       map[int]string
+	Votes      map[int]string
 }
 
 func NewMission(currentGame *Game) *Mission {
@@ -43,7 +43,7 @@ func NewMission(currentGame *Game) *Mission {
 	if currentMission == nil {
 		nextMissionNum = 1
 		currentLeader = nil
-	} else if currentMission.Result == RESULT_NONE {
+	} else if currentMission.Winner == WINNER_NONE {
 		nextMissionNum = currentMission.MissionNum
 		currentLeader = currentMission.Leader
 	} else {
@@ -55,9 +55,9 @@ func NewMission(currentGame *Game) *Mission {
 	newMission.Game = currentGame
 	newMission.MissionNum = nextMissionNum
 	newMission.Leader = currentGame.GetNextLeader(currentLeader)
-	newMission.Result = RESULT_NONE
-	newMission.Team = make(map[int]int)
-	newMission.Votes = make(map[int]int)
+	newMission.Winner = WINNER_NONE
+	newMission.Team = make(map[int]string)
+	newMission.Votes = make(map[int]string)
 
 	currentGame.Missions = append(currentGame.Missions, newMission)
 
@@ -124,11 +124,11 @@ func (mission *Mission) AddOutcome(user *users.User, outcome bool) {
 // IsMissionOver returns whether this mission is over by
 // making sure everyone who went on the mission has given
 // a PASS or FAIL. Also returns who won if it is over
-func (mission *Mission) IsMissionOver() (bool, int) {
+func (mission *Mission) IsMissionOver() (bool, string) {
 	numFails := 0
 	for _, outcome := range mission.Team {
 		if outcome == OUTCOME_NONE {
-			return false, RESULT_NONE
+			return false, WINNER_NONE
 		} else if outcome == OUTCOME_FAIL {
 			numFails += 1
 		}
@@ -140,9 +140,9 @@ func (mission *Mission) IsMissionOver() (bool, int) {
 	}
 
 	if numFails >= failsRequired {
-		return true, RESULT_SPY
+		return true, WINNER_SPY
 	} else {
-		return true, RESULT_RESISTANCE
+		return true, WINNER_RESISTANCE
 	}
 }
 
@@ -153,8 +153,8 @@ func (mission *Mission) IsRequiresTwoFails() bool {
 }
 
 // EndMission ends the mission by setting the result of the mission.
-func (mission *Mission) EndMission(result int) {
-	mission.Result = result
+func (mission *Mission) EndMission(result string) {
+	mission.Winner = result
 
 	err := mission.Game.Persister.PersistMission(mission)
 	if err != nil {
@@ -169,12 +169,12 @@ func (mission *Mission) GetMissionInfo() map[string]interface{} {
 	missionInfo["missionNum"] = mission.MissionNum
 	missionInfo["missionLeader"] = mission.Leader
 	switch {
-	case mission.Result == RESULT_NONE:
-		missionInfo["missionResult"] = RESULT_NONE_NAME
-	case mission.Result == RESULT_RESISTANCE:
-		missionInfo["missionResult"] = RESULT_RESISTANCE_NAME
-	case mission.Result == RESULT_SPY:
-		missionInfo["missionResult"] = RESULT_SPY_NAME
+	case mission.Winner == WINNER_NONE:
+		missionInfo["missionResult"] = WINNER_NONE_NAME
+	case mission.Winner == WINNER_RESISTANCE:
+		missionInfo["missionResult"] = WINNER_RESISTANCE_NAME
+	case mission.Winner == WINNER_SPY:
+		missionInfo["missionResult"] = WINNER_SPY_NAME
 	}
 	return missionInfo
 }

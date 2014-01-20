@@ -10,16 +10,16 @@ import (
 )
 
 const (
-	STATUS_LOBBY       = iota
-	STATUS_IN_PROGRESS = iota
-	STATUS_DONE        = iota
+	STATUS_LOBBY       = "L"
+	STATUS_IN_PROGRESS = "P"
+	STATUS_DONE        = "D"
 )
 
 type Game struct {
 	GameId     int
 	Title      string
 	Host       *users.User
-	GameStatus int
+	GameStatus string
 	Missions   []*Mission
 	Players    []*Player
 	Persister  GamePersistor
@@ -76,9 +76,9 @@ func (game *Game) IsGameOver() (bool, string) {
 	resistanceWins := 0
 	spyWins := 0
 	for _, mission := range game.Missions {
-		if mission.Result == RESULT_RESISTANCE {
+		if mission.Winner == WINNER_RESISTANCE {
 			resistanceWins += 1
-		} else if mission.Result == RESULT_SPY {
+		} else if mission.Winner == WINNER_SPY {
 			spyWins += 1
 		}
 	}

@@ -156,7 +156,7 @@ func (persister *Persister) PersistMission(currentMission *game.Mission) error {
 				currentMission.Game.GameId,
 				currentMission.MissionNum,
 				currentMission.Leader.UserId,
-				currentMission.Result)
+				currentMission.Winner)
 			if err == nil {
 				newMissionId, err := result.LastInsertId()
 				if err == nil {
@@ -169,7 +169,7 @@ func (persister *Persister) PersistMission(currentMission *game.Mission) error {
 				currentMission.Game.GameId,
 				currentMission.MissionNum,
 				currentMission.Leader.UserId,
-				currentMission.Result)
+				currentMission.Winner)
 			if err != nil {
 				return err
 			}
@@ -303,7 +303,7 @@ func (persister *Persister) retrieveGame(gameId int) *game.Game {
 	var gameTitle string
 	var hostId int
 	var hostUsername string
-	var gameStatus int
+	var gameStatus string
 
 	err := persister.db.QueryRow(GAME_READ_QUERY, gameId).Scan(&gameTitle, &hostId, &hostUsername, &gameStatus)
 	if err == nil {

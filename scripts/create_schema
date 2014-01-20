@@ -1,0 +1,32 @@
+#!/bin/bash
+
+username='resistance'
+password='resistance'
+sqlPath="$GOPATH/src/resistance/sql/"
+createDB=`ls $sqlPath | grep ^00_`
+
+function runSQLScript {
+  echo "Executing SQL script $1."
+  mysql -u $username -p$password resistance < $1
+}
+
+
+# Create the DB first
+mysql -u $username -p$password <  $sqlPath$createDB
+if [ $? != 0 ]
+then
+  echo "Failed to create the resistance database."
+  exit 1
+fi
+
+# Rest of the scripts
+for file in `ls $sqlPath | grep -v ^00_`
+do
+  runSQLScript $sqlPath$file
+  if [ $? != 0 ]
+  then
+    echo "Error while trying to run $file. Exiting."
+    exit 1
+  fi
+done
+

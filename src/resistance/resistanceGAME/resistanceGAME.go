@@ -311,7 +311,7 @@ func handleApproveTeam(message map[string]interface{}, currentGame *game.Game, c
 				missionApprovedMessage[MESSAGE_KEY] = MISSION_STARTED_MESSAGE
 				sendMessageToSubscribers(gameId, missionApprovedMessage, pubSocket)
 			} else {
-				currentGame.GetCurrentMission().EndMission(game.RESULT_NONE)
+				currentGame.GetCurrentMission().EndMission(game.WINNER_NONE)
 
 				_ = game.NewMission(currentGame)
 

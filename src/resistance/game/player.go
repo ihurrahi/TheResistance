@@ -5,18 +5,18 @@ import (
 )
 
 const (
-	ROLE_UNINITIALIZED      = iota
+	ROLE_UNINITIALIZED      = ""
 	ROLE_UNINITIALIZED_NAME = "None"
-	ROLE_RESISTANCE         = iota
+	ROLE_RESISTANCE         = "R"
 	ROLE_RESISTANCE_NAME    = "Resistance"
-	ROLE_SPY                = iota
+	ROLE_SPY                = "S"
 	ROLE_SPY_NAME           = "Spy"
 )
 
 type Player struct {
 	Game *Game
 	User *users.User
-	Role int
+	Role string
 }
 
 func NewPlayer(currentGame *Game, user *users.User) *Player {
