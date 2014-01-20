@@ -47,6 +47,7 @@ var numPlayersOnTeam = map[int]map[int]int{
 
 func NewGame(gameTitle string, hostId string, persister GamePersistor) *Game {
 	newGame := new(Game)
+	newGame.GameId = -1
 	newGame.Title = gameTitle
 	userId, err := strconv.Atoi(hostId)
 	if err == nil {

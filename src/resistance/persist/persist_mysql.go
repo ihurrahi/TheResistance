@@ -66,6 +66,12 @@ const (
 		" VALUES (?, ?, ?) " +
 		" ON DUPLICATE KEY UPDATE " +
 		PLAYERS_ROLE_COLUMN + " = VALUES(" + PLAYERS_ROLE_COLUMN + ")"
+	MISSION_CREATE_QUERY = "INSERT INTO " + MISSIONS_TABLE +
+		" (" + MISSIONS_GAME_ID_COLUMN + "," +
+		MISSIONS_MISSION_NUM_COLUMN + "," +
+		MISSIONS_LEADER_ID_COLUMN + "," +
+		MISSIONS_RESULT_COLUMN + ") " +
+		" VALUES (?, ?, ?, ?)"
 	MISSION_PERSIST_QUERY = "INSERT INTO " + MISSIONS_TABLE +
 		" (" + MISSIONS_ID_COLUMN + "," +
 		MISSIONS_GAME_ID_COLUMN + "," +
@@ -127,41 +133,59 @@ func NewPersister() *Persister {
 }
 
 func (persister *Persister) persistPlayer(currentPlayer *game.Player) error {
-	utils.LogMessage("Persisting a player...", utils.RESISTANCE_LOG_PATH)
-	_, err := persister.db.Exec(PLAYER_PERSIST_QUERY,
-		currentPlayer.Game.GameId,
-		currentPlayer.User.UserId,
-		currentPlayer.Role)
-	if err != nil {
-		return err
+	if currentPlayer != nil {
+		utils.LogMessage("Persisting a player...", utils.RESISTANCE_LOG_PATH)
+		_, err := persister.db.Exec(PLAYER_PERSIST_QUERY,
+			currentPlayer.Game.GameId,
+			currentPlayer.User.UserId,
+			currentPlayer.Role)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
 func (persister *Persister) PersistMission(currentMission *game.Mission) error {
-	utils.LogMessage("Persisting a mission...", utils.RESISTANCE_LOG_PATH)
-	// Persist the actual mission
-	_, err := persister.db.Exec(MISSION_PERSIST_QUERY,
-		currentMission.MissionId,
-		currentMission.Game.GameId,
-		currentMission.MissionNum,
-		currentMission.Leader.UserId,
-		currentMission.Result)
-	if err != nil {
-		return err
-	}
+	if currentMission != nil {
+		utils.LogMessage("Persisting a mission...", utils.RESISTANCE_LOG_PATH)
+		// Persist the actual mission
+		if currentMission.MissionId <= 0 {
+			result, err := persister.db.Exec(MISSION_CREATE_QUERY,
+				currentMission.Game.GameId,
+				currentMission.MissionNum,
+				currentMission.Leader.UserId,
+				currentMission.Result)
+			if err == nil {
+				newMissionId, err := result.LastInsertId()
+				if err == nil {
+					currentMission.MissionId = int(newMissionId)
+				}
+			}
+		} else {
+			_, err := persister.db.Exec(MISSION_PERSIST_QUERY,
+				currentMission.MissionId,
+				currentMission.Game.GameId,
+				currentMission.MissionNum,
+				currentMission.Leader.UserId,
+				currentMission.Result)
+			if err != nil {
+				return err
+			}
+		}
 
-	// Persist the team that went on this mission. Stop on error.
-	err = persister.persistTeam(currentMission)
-	if err != nil {
-		return err
-	}
+		// Persist the team that went on this mission. Stop on error.
+		err := persister.persistTeam(currentMission)
+		if err != nil {
+			return err
+		}
 
-	// Persist the votes that were cast for this mission . Stop on error.
-	err = persister.persistVotes(currentMission)
-	if err != nil {
-		return err
+		// Persist the votes that were cast for this mission . Stop on error.
+		err = persister.persistVotes(currentMission)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -194,49 +218,52 @@ func (persister *Persister) persistVotes(currentMission *game.Mission) error {
 }
 
 func (persister *Persister) PersistGame(currentGame *game.Game) error {
-	utils.LogMessage("Persisting a game...", utils.RESISTANCE_LOG_PATH)
-	// Persist the game itself
-	var err error
-	if currentGame.GameId == 0 {
-		result, err := persister.db.Exec(GAME_CREATE_QUERY,
-			currentGame.Title,
-			currentGame.Host.UserId,
-			currentGame.GameStatus)
-		if err == nil {
-			newGameId, err := result.LastInsertId()
+	if currentGame != nil {
+		utils.LogMessage("Persisting a game...", utils.RESISTANCE_LOG_PATH)
+		// Persist the game itself
+		var err error
+		if currentGame.GameId <= 0 {
+			result, err := persister.db.Exec(GAME_CREATE_QUERY,
+				currentGame.Title,
+				currentGame.Host.UserId,
+				currentGame.GameStatus)
 			if err == nil {
-				currentGame.GameId = int(newGameId)
+				newGameId, err := result.LastInsertId()
+				if err == nil {
+					currentGame.GameId = int(newGameId)
+				}
+			}
+		} else {
+			_, err = persister.db.Exec(GAME_PERSIST_QUERY,
+				currentGame.Title,
+				currentGame.Host.UserId,
+				currentGame.GameStatus,
+				currentGame.GameId)
+		}
+		if err != nil {
+			return err
+		}
+
+		// Persist all the players. Stop on error.
+		for _, player := range currentGame.Players {
+			err = persister.persistPlayer(player)
+			if err != nil {
+				return err
 			}
 		}
-	} else {
-		_, err = persister.db.Exec(GAME_PERSIST_QUERY,
-			currentGame.Title,
-			currentGame.Host.UserId,
-			currentGame.GameStatus,
-			currentGame.GameId)
-	}
-	if err != nil {
-		return err
-	}
 
-	// Persist all the players. Stop on error.
-	for _, player := range currentGame.Players {
-		err = persister.persistPlayer(player)
-		if err != nil {
-			return err
+		// Persist all the missions. Stop on error.
+		for _, mission := range currentGame.Missions {
+			persister.PersistMission(mission)
+			if err != nil {
+				return err
+			}
 		}
+
+		// Finished persisting, make sure that this game is in the cache
+		persister.gamesCache[currentGame.GameId] = currentGame
 	}
 
-	// Persist all the missions. Stop on error.
-	for _, mission := range currentGame.Missions {
-		persister.PersistMission(mission)
-		if err != nil {
-			return err
-		}
-	}
-
-	// Finished persisting, make sure that this game is in the cache
-	persister.gamesCache[currentGame.GameId] = currentGame
 	return nil
 }
 

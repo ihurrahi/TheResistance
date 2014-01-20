@@ -300,6 +300,11 @@ func handleApproveTeam(message map[string]interface{}, currentGame *game.Game, c
 
 		allVotesIn := currentGame.GetCurrentMission().IsAllVotesCollected()
 		if allVotesIn {
+			err := currentGame.Persister.PersistMission(currentGame.GetCurrentMission())
+			if err != nil {
+				utils.LogMessage(err.Error(), utils.RGAME_LOG_PATH)
+			}
+
 			missionApproved := currentGame.GetCurrentMission().IsTeamApproved()
 			if missionApproved {
 				var missionApprovedMessage = make(map[string]interface{})

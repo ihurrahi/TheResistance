@@ -85,7 +85,6 @@ func (mission *Mission) CreateTeam(team []*users.User) {
 // AddVote adds the vote of approval for the chosen team from a given
 // user to the mission.
 func (mission *Mission) AddVote(user *users.User, vote bool) {
-
 	if vote {
 		mission.Votes[user.UserId] = VOTE_ALLOW
 	} else {
