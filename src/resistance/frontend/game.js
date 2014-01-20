@@ -125,9 +125,18 @@ function handleGameStart(parsedMessage) {
 }
 
 function handleQueryRoleResult(parsedMessage) {
-  document.getElementById("showRoleButton").style.display = "none";
   var role = document.createTextNode(parsedMessage.role);
+
+  hideRole = function() {
+    document.getElementById("showRoleButton").style.display = "inline";
+	document.getElementById("roleInfo").removeChild(role);
+  }
+
+  window.setTimeout(hideRole, 3000);
+
+  document.getElementById("showRoleButton").style.display = "none";
   document.getElementById("roleInfo").appendChild(role);
+
 }
 
 function handleMissionPreparation(parsedMessage) {
