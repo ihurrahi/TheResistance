@@ -5,9 +5,12 @@ import (
 )
 
 const (
-	ROLE_UNINITIALIZED = iota
-	ROLE_RESISTANCE    = iota
-	ROLE_SPY           = iota
+	ROLE_UNINITIALIZED      = iota
+	ROLE_UNINITIALIZED_NAME = "None"
+	ROLE_RESISTANCE         = iota
+	ROLE_RESISTANCE_NAME    = "Resistance"
+	ROLE_SPY                = iota
+	ROLE_SPY_NAME           = "Spy"
 )
 
 type Player struct {

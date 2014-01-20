@@ -22,7 +22,7 @@ const (
 	MISSIONS_GAME_ID_COLUMN     = "game_id"
 	MISSIONS_MISSION_NUM_COLUMN = "mission_num"
 	MISSIONS_LEADER_ID_COLUMN   = "leader_id"
-	MISSIONS_RESULT_COLUMN      = "result"
+	MISSIONS_RESULT_COLUMN      = "winner"
 )
 
 const (
@@ -54,32 +54,41 @@ const (
 		GAMES_STATUS_COLUMN + ") " +
 		"VALUES (?, ?, ?)"
 	GAME_PERSIST_QUERY = "UPDATE " + GAMES_TABLE +
-		" (" + GAMES_TITLE_COLUMN + "," +
-		GAMES_HOST_COLUMN + "," +
-		GAMES_STATUS_COLUMN + ") " +
-		"VALUES (?, ?, ?) WHERE " + GAMES_ID_COLUMN + " = ?"
+		" SET " +
+		GAMES_TITLE_COLUMN + " = ?, " +
+		GAMES_HOST_COLUMN + " = ?, " +
+		GAMES_STATUS_COLUMN + " = ? " +
+		" WHERE " + GAMES_ID_COLUMN + " = ?"
 	PLAYER_PERSIST_QUERY = "INSERT INTO " + PLAYERS_TABLE +
 		" (" + PLAYERS_GAME_ID_COLUMN + "," +
 		PLAYERS_USER_ID_COLUMN + "," +
 		PLAYERS_ROLE_COLUMN + ") " +
-		"VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE"
+		" VALUES (?, ?, ?) " +
+		" ON DUPLICATE KEY UPDATE " +
+		PLAYERS_ROLE_COLUMN + " = VALUES(" + PLAYERS_ROLE_COLUMN + ")"
 	MISSION_PERSIST_QUERY = "INSERT INTO " + MISSIONS_TABLE +
 		" (" + MISSIONS_ID_COLUMN + "," +
 		MISSIONS_GAME_ID_COLUMN + "," +
 		MISSIONS_MISSION_NUM_COLUMN + "," +
 		MISSIONS_LEADER_ID_COLUMN + "," +
 		MISSIONS_RESULT_COLUMN + ") " +
-		"VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE"
+		" VALUES (?, ?, ?, ?, ?) " +
+		" ON DUPLICATE KEY UPDATE " +
+		MISSIONS_RESULT_COLUMN + " = VALUES(" + MISSIONS_RESULT_COLUMN + ")"
 	TEAM_PERSIST_QUERY = "INSERT INTO " + TEAMS_TABLE +
 		" (" + TEAMS_MISSION_ID_COLUMN + "," +
 		TEAMS_USER_ID_COLUMN + "," +
 		TEAMS_OUTCOME_COLUMN + ") " +
-		"VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE"
+		" VALUES (?, ?, ?) " +
+		" ON DUPLICATE KEY UPDATE " +
+		TEAMS_OUTCOME_COLUMN + " = VALUES(" + TEAMS_OUTCOME_COLUMN + ")"
 	VOTE_PERSIST_QUERY = "INSERT INTO " + VOTES_TABLE +
 		" (" + VOTES_MISSION_ID_COLUMN + "," +
 		VOTES_USER_ID_COLUMN + "," +
 		VOTES_VOTE_COLUMN + ") " +
-		"VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE"
+		" VALUES (?, ?, ?) " +
+		" ON DUPLICATE KEY UPDATE " +
+		VOTES_VOTE_COLUMN + " = VALUES(" + VOTES_VOTE_COLUMN + ")"
 )
 
 const (
@@ -159,10 +168,10 @@ func (persister *Persister) PersistMission(currentMission *game.Mission) error {
 }
 
 func (persister *Persister) persistTeam(currentMission *game.Mission) error {
-	for teamMember, outcome := range currentMission.Team {
+	for teamMemberId, outcome := range currentMission.Team {
 		_, err := persister.db.Exec(TEAM_PERSIST_QUERY,
 			currentMission.MissionId,
-			teamMember.UserId,
+			teamMemberId,
 			outcome)
 		if err != nil {
 			return err
@@ -172,10 +181,10 @@ func (persister *Persister) persistTeam(currentMission *game.Mission) error {
 }
 
 func (persister *Persister) persistVotes(currentMission *game.Mission) error {
-	for user, vote := range currentMission.Votes {
+	for userId, vote := range currentMission.Votes {
 		_, err := persister.db.Exec(VOTE_PERSIST_QUERY,
 			currentMission.MissionId,
-			user.UserId,
+			userId,
 			vote)
 		if err != nil {
 			return err

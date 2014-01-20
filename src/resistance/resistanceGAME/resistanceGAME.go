@@ -208,7 +208,12 @@ func handleQueryRole(currentGame *game.Game, player *users.User) map[string]inte
 	for _, singlePlayer := range currentGame.Players {
 		if singlePlayer.User.UserId == player.UserId {
 			returnMessage[MESSAGE_KEY] = QUERY_ROLE_RESULT_MESSAGE
-			returnMessage[ROLE_KEY] = singlePlayer.Role
+			switch {
+			case singlePlayer.Role == game.ROLE_RESISTANCE:
+				returnMessage[ROLE_KEY] = game.ROLE_RESISTANCE_NAME
+			case singlePlayer.Role == game.ROLE_SPY:
+				returnMessage[ROLE_KEY] = game.ROLE_SPY_NAME
+			}
 			break
 		}
 	}
@@ -227,7 +232,7 @@ func handleQueryLeader(currentGame *game.Game, player *users.User) map[string]in
 	returnMessage[IS_LEADER_KEY] = isLeader
 
 	if isLeader {
-		returnMessage[PLAYERS_KEY] = getPlayerUsernames(currentGame)
+		returnMessage[PLAYERS_KEY] = getPlayers(currentGame)
 		returnMessage[TEAM_SIZE_KEY] = currentGame.GetCurrentMission().GetCurrentMissionTeamSize()
 	}
 
@@ -391,15 +396,24 @@ func getPlayersMessage(currentGame *game.Game) map[string]interface{} {
 	return playersMessage
 }
 
+// getPlayerUsernames retrieves just the usernames of the players of the
+// current game.
 func getPlayerUsernames(currentGame *game.Game) []string {
-	var usernames = make([]string, 0)
-	players := currentGame.Players
-
-	for _, player := range players {
-		usernames = append(usernames, player.User.Username)
+	users := getPlayers(currentGame)
+	var usernames = make([]string, len(users))
+	for index, user := range users {
+		usernames[index] = user.Username
 	}
-
 	return usernames
+}
+
+// getPlayers retrieves just the users from the players of the current game.
+func getPlayers(currentGame *game.Game) []*users.User {
+	var users = make([]*users.User, len(currentGame.Players))
+	for index, player := range currentGame.Players {
+		users[index] = player.User
+	}
+	return users
 }
 
 // parseMessage parses every message that comes in and puts it into a Go struct.
@@ -417,13 +431,18 @@ func parseMessage(msg []byte) map[string]interface{} {
 
 // getUser extracts the user from the parsed message returned from parseMessage().
 func getUser(parsedMessage map[string]interface{}) *users.User {
+	var user *users.User
 	cookies := make([]*http.Cookie, 1)
-	parsedCookie := strings.Split(parsedMessage[USER_COOKIE_KEY].(string), "=")
-	cookies[0] = &http.Cookie{Name: parsedCookie[0], Value: parsedCookie[1]}
-	user, success := users.ValidateUserCookie(cookies)
-	if !success {
-		utils.LogMessage("Something went wrong when validating the user", utils.RGAME_LOG_PATH)
-		return nil
+	if parsedMessage[USER_COOKIE_KEY] != nil {
+		parsedCookie := strings.Split(parsedMessage[USER_COOKIE_KEY].(string), "=")
+		cookies[0] = &http.Cookie{Name: parsedCookie[0], Value: parsedCookie[1]}
+		user = users.ValidateUserCookie(cookies)
+		if !user.IsValidUser() {
+			utils.LogMessage("Something went wrong when validating the user", utils.RGAME_LOG_PATH)
+			user = nil
+		}
+	} else {
+		user = nil
 	}
 
 	return user

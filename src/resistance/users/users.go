@@ -74,18 +74,18 @@ func UserSignUp(request *http.Request) (bool, string) {
 }
 
 // ValidateUserCookie validates a user given the cookies from a request.
-func ValidateUserCookie(requestCookies []*http.Cookie) (*User, bool) {
+func ValidateUserCookie(requestCookies []*http.Cookie) *User {
 	if len(requestCookies) == 0 {
-		return nil, false
+		return UNKNOWN_USER
 	}
 
 	cookie := requestCookies[0]
 	user := lookupUserByCookie(cookie)
 	if user.IsValidUser() {
-		return user, true
+		return user
 	}
 
-	return nil, false
+	return UNKNOWN_USER
 }
 
 // ValidateUser is the entry point for the login handler. It validates the

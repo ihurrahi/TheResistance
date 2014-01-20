@@ -39,8 +39,8 @@ func indexHandler(writer http.ResponseWriter, request *http.Request) {
 	utils.LogMessage(request.URL.Path+" was requested", utils.RHTTP_LOG_PATH)
 
 	// If this person has a valid cookie, send them to their homepage
-	_, validUser := users.ValidateUserCookie(request.Cookies())
-	if validUser {
+	user := users.ValidateUserCookie(request.Cookies())
+	if user.IsValidUser() {
 		utils.LogMessage("Valid User, redirecting to /home.html", utils.RHTTP_LOG_PATH)
 		http.Redirect(writer, request, "/home.html", 302)
 	}
@@ -52,8 +52,8 @@ func loginHandler(writer http.ResponseWriter, request *http.Request) {
 	utils.LogMessage(request.URL.Path+" was requested", utils.RHTTP_LOG_PATH)
 
 	// If this person has a valid cookie, send them to their homepage instead
-	_, validUser := users.ValidateUserCookie(request.Cookies())
-	if validUser {
+	user := users.ValidateUserCookie(request.Cookies())
+	if user.IsValidUser() {
 		utils.LogMessage("Valid User, redirecting to /home.html", utils.RHTTP_LOG_PATH)
 		http.Redirect(writer, request, "/home.html", 302)
 	}
@@ -158,27 +158,28 @@ func gameHandler(writer http.ResponseWriter, request *http.Request) {
 
 	user := requiresLogin(writer, request)
 
-	err := request.ParseForm()
-	if err != nil {
-		utils.LogMessage(err.Error(), utils.RHTTP_LOG_PATH)
-	} else if len(request.Form) > 0 {
-		data := make(map[string]interface{})
-		data["gameId"] = request.FormValue("gameId")
-		data["userId"] = user.UserId
-		cookie, err := request.Cookie(users.COOKIE_NAME)
-		if err == nil {
-			data["userCookie"] = cookie.Name + "=" + cookie.Value
-		}
-		gameInfo := sendToGameBackend("isValidGame", data)
-		if gameInfo["error"] == nil {
-			utils.LogMessage(gameInfo["GameTitle"].(string), utils.RESISTANCE_LOG_PATH)
-			renderTemplate(writer, GAME_TEMPLATE, gameInfo)
+	if user.IsValidUser() {
+		err := request.ParseForm()
+		if err != nil {
+			utils.LogMessage(err.Error(), utils.RHTTP_LOG_PATH)
+		} else if len(request.Form) > 0 {
+			data := make(map[string]interface{})
+			data["gameId"] = request.FormValue("gameId")
+			cookie, err := request.Cookie(users.COOKIE_NAME)
+			if err == nil {
+				data["userCookie"] = cookie.Name + "=" + cookie.Value
+			}
+			gameInfo := sendToGameBackend("isValidGame", data)
+			if gameInfo["error"] == nil {
+				utils.LogMessage(gameInfo["GameTitle"].(string), utils.RESISTANCE_LOG_PATH)
+				renderTemplate(writer, GAME_TEMPLATE, gameInfo)
+			} else {
+				// TODO: how do i redirect to home and pass in an error message?
+				writer.Write([]byte(gameInfo["error"].(string)))
+			}
 		} else {
-			// TODO: how do i redirect to home and pass in an error message?
-			writer.Write([]byte(err.Error()))
+			http.Redirect(writer, request, "/home.html", 302)
 		}
-	} else {
-		http.Redirect(writer, request, "/home.html", 302)
 	}
 }
 
@@ -190,8 +191,8 @@ func renderTemplate(writer io.Writer, name string, parameters interface{}) {
 
 func requiresLogin(writer http.ResponseWriter, request *http.Request) *users.User {
 	// If this person has an invalid cookie, send them to the login page instead
-	user, validUser := users.ValidateUserCookie(request.Cookies())
-	if !validUser {
+	user := users.ValidateUserCookie(request.Cookies())
+	if !user.IsValidUser() {
 		utils.LogMessage("Invalid User, redirecting to /login.html", utils.RHTTP_LOG_PATH)
 		http.Redirect(writer, request, "/login.html", 302)
 	}

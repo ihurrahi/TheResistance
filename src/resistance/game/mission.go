@@ -6,9 +6,12 @@ import (
 )
 
 const (
-	RESULT_NONE       = iota
-	RESULT_RESISTANCE = iota
-	RESULT_SPY        = iota
+	RESULT_NONE            = iota
+	RESULT_NONE_NAME       = ""
+	RESULT_RESISTANCE      = iota
+	RESULT_RESISTANCE_NAME = "Success"
+	RESULT_SPY             = iota
+	RESULT_SPY_NAME        = "Fail"
 )
 
 const (
@@ -28,27 +31,33 @@ type Mission struct {
 	MissionNum int
 	Leader     *users.User
 	Result     int
-	Team       map[*users.User]int
-	Votes      map[*users.User]int
+	Team       map[int]int
+	Votes      map[int]int
 }
 
 func NewMission(currentGame *Game) *Mission {
 	currentMission := currentGame.GetCurrentMission()
 
 	var nextMissionNum int
+	var currentLeader *users.User
 	if currentMission == nil {
 		nextMissionNum = 1
+		currentLeader = nil
 	} else if currentMission.Result == RESULT_NONE {
 		nextMissionNum = currentMission.MissionNum
+		currentLeader = currentMission.Leader
 	} else {
 		nextMissionNum = currentMission.MissionNum + 1
+		currentLeader = currentMission.Leader
 	}
 
 	newMission := new(Mission)
 	newMission.Game = currentGame
 	newMission.MissionNum = nextMissionNum
-	newMission.Leader = currentGame.GetNextLeader(currentMission.Leader)
+	newMission.Leader = currentGame.GetNextLeader(currentLeader)
 	newMission.Result = RESULT_NONE
+	newMission.Team = make(map[int]int)
+	newMission.Votes = make(map[int]int)
 
 	currentGame.Missions = append(currentGame.Missions, newMission)
 
@@ -64,7 +73,7 @@ func NewMission(currentGame *Game) *Mission {
 // given list of users
 func (mission *Mission) CreateTeam(team []*users.User) {
 	for _, user := range team {
-		mission.Team[user] = OUTCOME_NONE
+		mission.Team[user.UserId] = OUTCOME_NONE
 	}
 
 	err := mission.Game.Persister.PersistMission(mission)
@@ -76,10 +85,11 @@ func (mission *Mission) CreateTeam(team []*users.User) {
 // AddVote adds the vote of approval for the chosen team from a given
 // user to the mission.
 func (mission *Mission) AddVote(user *users.User, vote bool) {
+
 	if vote {
-		mission.Votes[user] = VOTE_ALLOW
+		mission.Votes[user.UserId] = VOTE_ALLOW
 	} else {
-		mission.Votes[user] = VOTE_VETO
+		mission.Votes[user.UserId] = VOTE_VETO
 	}
 }
 
@@ -106,9 +116,9 @@ func (mission *Mission) IsTeamApproved() bool {
 // to the mission.
 func (mission *Mission) AddOutcome(user *users.User, outcome bool) {
 	if outcome {
-		mission.Team[user] = OUTCOME_PASS
+		mission.Team[user.UserId] = OUTCOME_PASS
 	} else {
-		mission.Team[user] = OUTCOME_FAIL
+		mission.Team[user.UserId] = OUTCOME_FAIL
 	}
 }
 
@@ -159,8 +169,15 @@ func (mission *Mission) GetMissionInfo() map[string]interface{} {
 	missionInfo := make(map[string]interface{})
 	missionInfo["missionNum"] = mission.MissionNum
 	missionInfo["missionLeader"] = mission.Leader
-	missionInfo["missionResult"] = mission.Result
-	return make(map[string]interface{})
+	switch {
+	case mission.Result == RESULT_NONE:
+		missionInfo["missionResult"] = RESULT_NONE_NAME
+	case mission.Result == RESULT_RESISTANCE:
+		missionInfo["missionResult"] = RESULT_RESISTANCE_NAME
+	case mission.Result == RESULT_SPY:
+		missionInfo["missionResult"] = RESULT_SPY_NAME
+	}
+	return missionInfo
 }
 
 // IsUserCurrentMissionLeader returns whether the given user is the current
@@ -178,7 +195,7 @@ func (mission *Mission) GetCurrentMissionTeamSize() int {
 // IsUserOnCurrentMission returns whether the given user is going on this
 // mission.
 func (mission *Mission) IsUserOnCurrentMission(currentUser *users.User) bool {
-	if _, ok := mission.Team[currentUser]; ok {
+	if _, ok := mission.Team[currentUser.UserId]; ok {
 		return true
 	}
 	return false
