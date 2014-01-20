@@ -10,9 +10,9 @@ function parseUrlParams() {
 
 function handleMessage(message) {
   object = JSON.parse(message);
-  
+
   handleAnyErrors(object);
-  
+
   switch(object.message) {
     case "playerConnectSuccessful":
       handlePlayerConnectSuccessful(object);
@@ -80,7 +80,7 @@ function handlePlayerConnectSuccessful(parsedMessage) {
   } else {
     actionDiv.appendChild(document.createTextNode("Waiting for host to start game..."));
   }
-  
+
   sendResistanceMessage("getPlayers");
 }
 
@@ -109,7 +109,7 @@ function handleGameStart(parsedMessage) {
   if (startButton != null && actionDiv != null) {
       actionDiv.removeChild(startButton);
   }
-  
+
   // Show button to get role
   var button = document.getElementById("showRoleButton");
   if (button == null) {
@@ -146,20 +146,20 @@ function handleQueryLeaderResult(parsedMessage) {
     message = "Please select a team of " + parsedMessage["teamSize"] + ".";
     actionDiv.appendChild(document.createTextNode(message));
     addBreak(actionDiv);
-    
+
     var form = document.createElement("form");
     for (var index in parsedMessage.players) {
       var player = parsedMessage.players[index];
-      
+
       var option = document.createElement("input");
       option.type = "checkbox";
       option.id = "teamMember" + player["UserId"];
       option.value = player["UserId"];
-      
+
       var label = document.createElement("label");
       label.innerHTML = player["Username"];
       label.htmlFor = "teamMember" + player["UserId"];
-      
+
       form.appendChild(option);
       form.appendChild(label);
       addBreak(form);
@@ -171,9 +171,9 @@ function handleQueryLeaderResult(parsedMessage) {
     submitButton.onclick = function() {
       var userIds = [];
       var inputs = form.getElementsByTagName("input");
-      for (var index in inputs) {
-        if (inputs[index].type == "checkbox" && inputs[index].checked) {
-          userIds.push(inputs[index].value);
+      for (var i = 0; i < inputs.length; i++) {
+        if (inputs[i].type == "checkbox" && inputs[i].checked) {
+          userIds.push(inputs[i].value);
         }
       }
       if (userIds.length != parsedMessage["teamSize"]) {
@@ -185,7 +185,7 @@ function handleQueryLeaderResult(parsedMessage) {
       return true;
     }
     form.appendChild(submitButton);
-    
+
     actionDiv.appendChild(form);
   } else {
     actionDiv.appendChild(document.createTextNode("You are not the leader."));
@@ -211,7 +211,7 @@ function handleTeamApproval(parsedMessage) {
     sendResistanceMessage("approveTeam", {"vote":true});
   }
   actionDiv.appendChild(yesButton);
-  
+
   var noButton = document.createElement("input");
   noButton.type = "button";
   noButton.value = "No";
@@ -257,7 +257,7 @@ function handleQueryIsOnMissionResult(parsedMessage) {
       sendResistanceMessage("missionOutcome", {"outcome":true});
     }
     actionDiv.appendChild(successButton);
-    
+
     var failButton = document.createElement("input");
     failButton.type = "button";
     failButton.value = "Fail";
@@ -283,10 +283,10 @@ function handleMissions(parsedMessage) {
   if (missionInfoTable != null) {
       missionInfoDiv.removeChild(missionInfoTable);
   }
-  
+
   var table = document.createElement("table");
   table.id = "missionTable";
-  
+
   // Create headers
   var header = table.createTHead();
   var row = header.insertRow(0);
@@ -296,19 +296,19 @@ function handleMissions(parsedMessage) {
   cell1.innerHTML = "Mission #";
   cell2.innerHTML = "Leader";
   cell3.innerHTML = "Result";
-  
+
   for (var i in parsedMessage.missions) {
     var info = parsedMessage.missions[i];
     var row = table.insertRow(-1);
     var cell1 = row.insertCell(0);
     var cell2 = row.insertCell(1);
     var cell3 = row.insertCell(2);
-    
+
     cell1.innerHTML = info.missionNum;
     cell2.innerHTML = info.missionLeader.Username;
     cell3.innerHTML = info.missionResult;
   }
-  
+
   missionInfoDiv.appendChild(table);
 }
 
