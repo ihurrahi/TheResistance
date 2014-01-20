@@ -19,6 +19,10 @@ Dependencies
 
 Running
 -----------
+To get a clean database, just run the schema create script
+
+    scripts/create_schema
+
 After downloading the source and the dependencies into the src/ directory, you can build the project using
 
     scripts/resistance build ALL
