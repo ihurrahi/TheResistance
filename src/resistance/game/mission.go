@@ -125,14 +125,13 @@ func (mission *Mission) AddOutcome(user *users.User, outcome bool) {
 // making sure everyone who went on the mission has given
 // a PASS or FAIL. Also returns who won if it is over
 func (mission *Mission) IsMissionOver() (bool, string) {
-	numFails := 0
 	for _, outcome := range mission.Team {
 		if outcome == OUTCOME_NONE {
 			return false, WINNER_NONE
-		} else if outcome == OUTCOME_FAIL {
-			numFails += 1
 		}
 	}
+
+	numFails := mission.getNumFails()
 
 	failsRequired := 1
 	if mission.IsRequiresTwoFails() {
@@ -144,6 +143,17 @@ func (mission *Mission) IsMissionOver() (bool, string) {
 	} else {
 		return true, WINNER_RESISTANCE
 	}
+}
+
+// getNumFails returns the number of fails of this mission.
+func (mission *Mission) getNumFails() int {
+	numFails := 0
+	for _, outcome := range mission.Team {
+		if outcome == OUTCOME_FAIL {
+			numFails += 1
+		}
+	}
+	return numFails
 }
 
 // IsRequiresTwoFails returns whether this mission requires two fails to
@@ -176,6 +186,13 @@ func (mission *Mission) GetMissionInfo() map[string]interface{} {
 	case mission.Winner == WINNER_SPY:
 		missionInfo["missionResult"] = WINNER_SPY_NAME
 	}
+
+	if mission.Winner != WINNER_NONE {
+		missionInfo["numFails"] = mission.getNumFails()
+	} else {
+		missionInfo["numFails"] = ""
+	}
+
 	return missionInfo
 }
 
