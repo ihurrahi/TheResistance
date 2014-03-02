@@ -14,14 +14,22 @@ const (
 )
 
 type Player struct {
-	Game *Game
+	game *Game
 	User *users.User
 	Role string
 }
 
+func (player *Player) GetGame() *Game {
+	return player.game
+}
+
+func (player *Player) setGame(game *Game) {
+	player.game = game
+}
+
 func NewPlayer(currentGame *Game, user *users.User) *Player {
 	newPlayer := new(Player)
-	newPlayer.Game = currentGame
+	newPlayer.setGame(currentGame)
 	newPlayer.User = user
 	newPlayer.Role = ROLE_UNINITIALIZED
 

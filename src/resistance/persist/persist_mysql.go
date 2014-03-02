@@ -140,7 +140,7 @@ func (persister *Persister) persistPlayer(currentPlayer *game.Player) error {
 	if currentPlayer != nil {
 		utils.LogMessage("Persisting a player...", utils.RESISTANCE_LOG_PATH)
 		_, err := persister.db.Exec(PLAYER_PERSIST_QUERY,
-			currentPlayer.Game.GameId,
+			currentPlayer.GetGame().GameId,
 			currentPlayer.User.UserId,
 			currentPlayer.Role)
 		if err != nil {
