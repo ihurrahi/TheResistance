@@ -22,6 +22,7 @@ const (
 	LOBBY_TEMPLATE       = "lobby.html"
 	HISTORY_TEMPLATE     = "history.html"
 	GAME_TEMPLATE        = "game.html"
+	COOKIE_NAME          = "RC"
 )
 
 const (
@@ -75,6 +76,14 @@ func loginHandler(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	renderTemplate(writer, LOGIN_TEMPLATE, make(map[string]string))
+}
+
+func logoutHandler(writer http.ResponseWriter, request *http.Request) {
+	utils.LogMessage(request.URL.Path+" was requested", utils.RHTTP_LOG_PATH)
+
+	cookie := &http.Cookie{Name: COOKIE_NAME, Value: "deleted"}
+	http.SetCookie(writer, cookie)
+	http.Redirect(writer, request, "/", 302)
 }
 
 func signupHandler(writer http.ResponseWriter, request *http.Request) {
@@ -238,6 +247,7 @@ func main() {
 	http.HandleFunc("/lobby.html", lobbyHandler)
 	http.HandleFunc("/history.html", historyHandler)
 	http.HandleFunc("/game.html", gameHandler)
+	http.HandleFunc("/logout.html", logoutHandler)
 	http.Handle("/socket.io.js", http.FileServer(http.Dir("src/github.com/justinfx/go-socket.io/bin/www/vendor/socket.io-client")))
 	http.Handle("/game.js", http.FileServer(http.Dir("src/resistance/frontend")))
 	http.Handle("/game.css", http.FileServer(http.Dir("src/resistance/frontend")))
