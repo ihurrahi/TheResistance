@@ -115,6 +115,10 @@ const (
 		" WHERE " + PLAYERS_GAME_ID_COLUMN + " = ?"
 	MISSION_READ_QUERY = "SELECT * FROM " + MISSIONS_TABLE +
 		" WHERE " + MISSIONS_GAME_ID_COLUMN + " = ?"
+	GAME_STATUS_FILTER = "SELECT " +
+		GAMES_ID_COLUMN +
+		" FROM " + GAMES_TABLE +
+		" WHERE " + GAMES_STATUS_COLUMN + " = ?"
 )
 
 type Persister struct {
@@ -153,7 +157,7 @@ func (persister *Persister) PersistMission(currentMission *game.Mission) error {
 		// Persist the actual mission
 		if currentMission.MissionId <= 0 {
 			result, err := persister.db.Exec(MISSION_CREATE_QUERY,
-				currentMission.Game.GameId,
+				currentMission.GetGame().GameId,
 				currentMission.MissionNum,
 				currentMission.Leader.UserId,
 				currentMission.Winner)
@@ -166,7 +170,7 @@ func (persister *Persister) PersistMission(currentMission *game.Mission) error {
 		} else {
 			_, err := persister.db.Exec(MISSION_PERSIST_QUERY,
 				currentMission.MissionId,
-				currentMission.Game.GameId,
+				currentMission.GetGame().GameId,
 				currentMission.MissionNum,
 				currentMission.Leader.UserId,
 				currentMission.Winner)
@@ -322,4 +326,29 @@ func (persister *Persister) retrieveGame(gameId int) *game.Game {
 	}
 
 	return retrievedGame
+}
+
+// GetAllGames retrieves all games of the given game status
+func (persister *Persister) GetAllGames(gameStatus string) []*game.Game {
+	utils.LogMessage("getting all games from persister", utils.RESISTANCE_LOG_PATH)
+	allGames := make([]*game.Game, 0)
+	if gameStatus != game.STATUS_LOBBY &&
+		gameStatus != game.STATUS_IN_PROGRESS &&
+		gameStatus != game.STATUS_DONE {
+		return allGames
+	}
+
+	result, err := persister.db.Query(GAME_STATUS_FILTER, gameStatus)
+	if err == nil {
+		for result.Next() {
+			var gameId int
+			err = result.Scan(&gameId)
+			if err == nil {
+				game := persister.ReadGame(gameId)
+				allGames = append(allGames, game)
+			}
+		}
+	}
+
+	return allGames
 }

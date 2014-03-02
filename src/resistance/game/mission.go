@@ -26,13 +26,21 @@ const (
 )
 
 type Mission struct {
-	Game       *Game
+	game       *Game
 	MissionId  int
 	MissionNum int
 	Leader     *users.User
 	Winner     string
 	Team       map[int]string
 	Votes      map[int]string
+}
+
+func (mission *Mission) GetGame() *Game {
+	return mission.game
+}
+
+func (mission *Mission) setGame(game *Game) {
+	mission.game = game
 }
 
 func NewMission(currentGame *Game) *Mission {
@@ -52,7 +60,7 @@ func NewMission(currentGame *Game) *Mission {
 	}
 
 	newMission := new(Mission)
-	newMission.Game = currentGame
+	newMission.setGame(currentGame)
 	newMission.MissionNum = nextMissionNum
 	newMission.Leader = currentGame.GetNextLeader(currentLeader)
 	newMission.Winner = WINNER_NONE
@@ -76,7 +84,7 @@ func (mission *Mission) CreateTeam(team []*users.User) {
 		mission.Team[user.UserId] = OUTCOME_NONE
 	}
 
-	err := mission.Game.Persister.PersistMission(mission)
+	err := mission.GetGame().Persister.PersistMission(mission)
 	if err != nil {
 		utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
 	}
@@ -96,7 +104,7 @@ func (mission *Mission) AddVote(user *users.User, vote bool) {
 // and all the votes for this mission are in. We need to make
 // sure we have as many votes as there are players in the game.
 func (mission *Mission) IsAllVotesCollected() bool {
-	return len(mission.Votes) == len(mission.Game.Players)
+	return len(mission.Votes) == len(mission.GetGame().Players)
 }
 
 // IsTeamApproved returns whether the team going on this mission
@@ -159,14 +167,14 @@ func (mission *Mission) getNumFails() int {
 // IsRequiresTwoFails returns whether this mission requires two fails to
 // fail the mission.
 func (mission *Mission) IsRequiresTwoFails() bool {
-	return len(mission.Game.Players) >= 7 && mission.MissionNum == 4
+	return len(mission.GetGame().Players) >= 7 && mission.MissionNum == 4
 }
 
 // EndMission ends the mission by setting the result of the mission.
 func (mission *Mission) EndMission(result string) {
 	mission.Winner = result
 
-	err := mission.Game.Persister.PersistMission(mission)
+	err := mission.GetGame().Persister.PersistMission(mission)
 	if err != nil {
 		utils.LogMessage(err.Error(), utils.RESISTANCE_LOG_PATH)
 	}
@@ -205,7 +213,7 @@ func (mission *Mission) IsUserCurrentMissionLeader(currentUser *users.User) bool
 // GetCurrentMissionTeamSize returns the how many players need to go on this
 // mission.
 func (mission *Mission) GetCurrentMissionTeamSize() int {
-	return numPlayersOnTeam[len(mission.Game.Players)][mission.MissionNum]
+	return numPlayersOnTeam[len(mission.GetGame().Players)][mission.MissionNum]
 }
 
 // IsUserOnCurrentMission returns whether the given user is going on this

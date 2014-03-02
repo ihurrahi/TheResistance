@@ -142,7 +142,10 @@ func lobbyHandler(writer http.ResponseWriter, request *http.Request) {
 
 	user := requiresLogin(writer, request)
 
-	renderTemplate(writer, LOBBY_TEMPLATE, user)
+	if user.IsValidUser() {
+		gameInfo := sendToGameBackend("getAllGames", make(map[string]interface{}))
+		renderTemplate(writer, LOBBY_TEMPLATE, gameInfo)
+	}
 }
 
 func historyHandler(writer http.ResponseWriter, request *http.Request) {

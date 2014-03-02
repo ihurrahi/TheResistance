@@ -35,6 +35,7 @@ const (
 	ERROR_KEY         = "error"
 
 	// messages received from the frontend
+	GET_ALL_GAMES_MESSAGE       = "getAllGames"
 	CREATE_GAME_MESSAGE         = "createGame"
 	IS_VALID_GAME_MESSAGE       = "isValidGame"
 	PLAYER_CONNECT_MESSAGE      = "playerConnect"
@@ -129,6 +130,14 @@ func handleIsValidGame(gameIdString string, requestUser *users.User) map[string]
 	// If we got here, it means we are good to go.
 	gameInfo["GameTitle"] = requestedGame.Title
 	return gameInfo
+}
+
+// handleGetAllGames handles the message that is sent when requesting
+// the lobby page.
+func handleGetAllGames() map[string]interface{} {
+	returnMessage := make(map[string]interface{})
+	returnMessage["games"] = persister.GetAllGames(game.STATUS_LOBBY)
+	return returnMessage
 }
 
 // handlePlayerConnect handles the message that is sent when a player
@@ -506,8 +515,11 @@ func main() {
 
 		if parsedMessage[MESSAGE_KEY] == IS_VALID_GAME_MESSAGE {
 			returnMessage = handleIsValidGame(gameIdString, user)
+		} else if parsedMessage[MESSAGE_KEY] == GET_ALL_GAMES_MESSAGE {
+			returnMessage = handleGetAllGames()
 		} else {
 
+			// Rest of game related activity
 			gameId, err := strconv.Atoi(gameIdString)
 
 			if err == nil {

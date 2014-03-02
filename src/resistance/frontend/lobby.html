@@ -3,6 +3,21 @@
 Lobby
 </title>
 <body>
-The Lobby Page has not been implemented yet.
+<table>
+<tr>
+<th>Title</th>
+<th>Host</th>
+<th></th>
+</tr>
+{{with .games}}
+	{{range .}}
+		<tr>
+		<td>{{.Title}}</td>
+		<td>{{.Host.Username}}</td>
+		<td><a href="/game.html?gameId={{.GameId}}">Join</a></td>
+		</tr>
+	{{end}}
+{{end}}
+</table>
 </body>
 </html>
