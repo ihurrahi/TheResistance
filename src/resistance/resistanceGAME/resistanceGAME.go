@@ -115,10 +115,9 @@ func handleIsValidGame(gameIdString string, requestUser *users.User) map[string]
 			}
 		case gameStatus == game.STATUS_LOBBY:
 			// make sure we're not going over the limit of 10 players
-			// we are assuming the player is no longer in the list of players
-			// if the player leaves the game while in the lobby status
-			if len(requestedGame.Players) >= 10 {
-				gameInfo[ERROR_KEY] = "Game has reach maximum capacity"
+			// getPlayers() handles duplicate players
+			if len(getPlayers(requestedGame)) >= 10 {
+				gameInfo[ERROR_KEY] = "Game has reached maximum capacity"
 				return gameInfo
 			}
 		}
@@ -160,6 +159,7 @@ func handlePlayerConnect(currentGame *game.Game, connectingPlayer *users.User, p
 	returnMessage[MESSAGE_KEY] = PLAYER_CONNECT_SUCCESSFUL_MESSAGE
 	returnMessage[GAME_ID_KEY] = gameId
 	returnMessage[ACCEPT_USER_KEY] = true
+	// TODO: remove?
 	returnMessage[USER_ID_KEY] = connectingPlayer.UserId
 
 	if currentGame.Host.UserId == connectingPlayer.UserId {
@@ -171,9 +171,15 @@ func handlePlayerConnect(currentGame *game.Game, connectingPlayer *users.User, p
 
 // handlerPlayerDisconnect handles the message that is sent when
 // a player disconnects from the web socket proxy.
-func handlePlayerDisconnect(message map[string]interface{}) map[string]interface{} {
+func handlePlayerDisconnect(currentGame *game.Game, connectingPlayer *users.User, pubSocket *zmq.Socket) map[string]interface{} {
 	var returnMessage = make(map[string]interface{})
-	// TODO: implement
+
+	currentGame.RemovePlayer(connectingPlayer)
+	sendMessageToSubscribers(currentGame.GameId, getPlayersMessage(currentGame), pubSocket)
+
+	// TODO: handle the case where someone disconnects in the middle of the game
+	// TODO: as the above only handles the case where the game has not started yet
+
 	return returnMessage
 }
 
@@ -423,11 +429,15 @@ func getPlayerUsernames(currentGame *game.Game) []string {
 
 // getPlayers retrieves just the users from the players of the current game.
 func getPlayers(currentGame *game.Game) []*users.User {
-	var users = make([]*users.User, len(currentGame.Players))
-	for index, player := range currentGame.Players {
-		users[index] = player.User
+	var uniqueUsers = make([]*users.User, 0)
+	var allUsers = make(map[int]bool)
+	for _, player := range currentGame.Players {
+		if !allUsers[player.User.UserId] {
+			uniqueUsers = append(uniqueUsers, player.User)
+			allUsers[player.User.UserId] = true
+		}
 	}
-	return users
+	return uniqueUsers
 }
 
 // parseMessage parses every message that comes in and puts it into a Go struct.
@@ -448,6 +458,7 @@ func getUser(parsedMessage map[string]interface{}) *users.User {
 	var user *users.User
 	cookies := make([]*http.Cookie, 1)
 	if parsedMessage[USER_COOKIE_KEY] != nil {
+		utils.LogMessage("cookie received:"+parsedMessage[USER_COOKIE_KEY].(string), utils.RGAME_LOG_PATH)
 		parsedCookie := strings.Split(parsedMessage[USER_COOKIE_KEY].(string), "=")
 		cookies[0] = &http.Cookie{Name: parsedCookie[0], Value: parsedCookie[1]}
 		user = users.ValidateUserCookie(cookies)
@@ -533,8 +544,11 @@ func main() {
 					returnMessage = handleCreateGame(parsedMessage, user)
 				case parsedMessage[MESSAGE_KEY] == PLAYER_CONNECT_MESSAGE:
 					returnMessage = handlePlayerConnect(currentGame, user, pubSocket)
+					if parsedMessage[USER_COOKIE_KEY] != nil {
+						returnMessage[USER_COOKIE_KEY] = parsedMessage[USER_COOKIE_KEY]
+					}
 				case parsedMessage[MESSAGE_KEY] == PLAYER_DISCONNECT_MESSAGE:
-					returnMessage = handlePlayerDisconnect(parsedMessage)
+					returnMessage = handlePlayerDisconnect(currentGame, user, pubSocket)
 				case parsedMessage[MESSAGE_KEY] == GET_PLAYERS_MESSAGE:
 					returnMessage = handleGetPlayers(currentGame)
 				case parsedMessage[MESSAGE_KEY] == START_GAME_MESSAGE:

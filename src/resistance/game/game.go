@@ -70,6 +70,17 @@ func (game *Game) AddPlayer(user *users.User) {
 	game.Players = append(game.Players, newPlayer)
 }
 
+// RemovePlayer removes the given user from the game.
+// Note that this only removes the first one found and
+// will leave duplicates in, if any.
+func (game *Game) RemovePlayer(user *users.User) {
+	for index, player := range game.Players {
+		if player.User.UserId == user.UserId {
+			game.Players = append(game.Players[:index], game.Players[index+1:]...)
+		}
+	}
+}
+
 // IsGameOver determines whether the game is over by looking at all
 // the mission results. Also returns a string of who won if the game was over.
 func (game *Game) IsGameOver() (bool, string) {

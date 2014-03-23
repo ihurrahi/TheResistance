@@ -12,18 +12,32 @@ import (
 	"time"
 )
 
+const (
+	MESSAGE_KEY               = "message"
+	PLAYER_DISCONNECT_MESSAGE = "playerDisconnect"
+	USER_COOKIE_KEY           = "userCookie"
+	GAME_ID_KEY               = "gameId"
+)
+
 type AcceptUser struct {
 	AcceptUser bool
 	GameId     int
 	UserId     int
+	UserCookie string
+}
+
+type UserInformation struct {
+	Socket      *zmq.Socket
+	SyncChannel chan []byte
+	Cookie      string
+	GameId      string
 }
 
 var (
-	DISCONNECT_MESSAGE                                    = []byte("DISCONNECT")
-	allListeners           map[*socketio.Conn]*zmq.Socket = make(map[*socketio.Conn]*zmq.Socket)
-	connectionSyncChannels map[*socketio.Conn]chan []byte = make(map[*socketio.Conn]chan []byte)
-	refreshChan                                           = make(chan bool)
-	deleteFinishChan                                      = make(chan bool)
+	DISCONNECT_MESSAGE                                     = []byte("DISCONNECT")
+	userInfos          map[*socketio.Conn]*UserInformation = make(map[*socketio.Conn]*UserInformation)
+	refreshChan                                            = make(chan bool)
+	deleteFinishChan                                       = make(chan bool)
 )
 
 // subscribeConnection is meant to run in the background. Waits for a message
@@ -31,7 +45,7 @@ var (
 // to the frontend. Also waits for a message from socketio in case a player
 // disconnects.
 func subscribeConnection(socket *socketio.Conn) {
-	messageChannel := connectionSyncChannels[socket]
+	messageChannel := userInfos[socket].SyncChannel
 
 	for {
 		message := <-messageChannel
@@ -51,9 +65,9 @@ func receiveZmqMessages() {
 	for {
 		pollItems := make([]zmq.PollItem, 0)
 		allSockets := make(map[*zmq.Socket]*socketio.Conn)
-		for connection, zmqSocket := range allListeners {
-			pollItems = append(pollItems, zmq.PollItem{Socket: zmqSocket, Events: zmq.POLLIN})
-			allSockets[zmqSocket] = connection
+		for connection, userInfo := range userInfos {
+			pollItems = append(pollItems, zmq.PollItem{Socket: userInfo.Socket, Events: zmq.POLLIN})
+			allSockets[userInfo.Socket] = connection
 		}
 
 		if len(pollItems) > 0 {
@@ -69,7 +83,7 @@ func receiveZmqMessages() {
 						// In case we already closed the channel, we don't want to block on this
 						// If the channel is closed, the message can't go anywhere anyways.
 						select {
-						case connectionSyncChannels[allSockets[pollItem.Socket]] <- rest:
+						case userInfos[allSockets[pollItem.Socket]].SyncChannel <- rest:
 						default:
 						}
 					}
@@ -96,13 +110,33 @@ func receiveZmqMessages() {
 // isAcceptUser checks if the reply from the ZMQ socket indicated
 // that the user was ok, so the proxy can start a listener on the SUBSCRIBE
 // socket for that user. Returns (acceptUser, gameId, userId)
-func isAcceptUser(zmqReply []byte) (bool, int, int) {
+func isAcceptUser(zmqReply []byte) *AcceptUser {
 	var acceptUser AcceptUser
 	err := json.Unmarshal(zmqReply, &acceptUser)
 	if err != nil {
-		return false, 0, 0
+		return &AcceptUser{false, 0, 0, ""}
 	}
-	return acceptUser.AcceptUser, acceptUser.GameId, acceptUser.UserId
+	return &acceptUser
+}
+
+// sendMessageToBackend performs the actual sending of the message
+// over ZMQ using the given context
+func sendMessageToBackend(msg string, context *zmq.Context) []byte {
+	zmqSocket, _ := context.NewSocket(zmq.REQ)
+	defer zmqSocket.Close()
+
+	zmqSocket.Connect("tcp://localhost:" + utils.GAME_REP_REQ_PORT)
+	utils.LogMessage("WSP connected to port "+utils.GAME_REP_REQ_PORT, utils.RWSP_LOG_PATH)
+
+	zmqSocket.Send([]byte(msg), 0)
+	utils.LogMessage("Sending to game backend", utils.RWSP_LOG_PATH)
+	utils.LogMessage(msg, utils.RWSP_LOG_PATH)
+
+	reply, _ := zmqSocket.Recv(0)
+	utils.LogMessage("Reply received", utils.RWSP_LOG_PATH)
+	utils.LogMessage(string(reply), utils.RWSP_LOG_PATH)
+
+	return reply
 }
 
 // handleMessage handles a message from the frontend. Basically forwards it
@@ -110,34 +144,29 @@ func isAcceptUser(zmqReply []byte) (bool, int, int) {
 // reply to the frontend. If this was a player connect message, and the
 // user is accepted, we should start a listener to the SUBSCRIBE socket.
 func handleMessage(msg socketio.Message, socket *socketio.Conn, context *zmq.Context) {
-	zmqSocket, _ := context.NewSocket(zmq.REQ)
-	defer zmqSocket.Close()
+	reply := sendMessageToBackend(msg.Data(), context)
 
-	zmqSocket.Connect("tcp://localhost:" + utils.GAME_REP_REQ_PORT)
-	utils.LogMessage("WSP connected to port "+utils.GAME_REP_REQ_PORT, utils.RWSP_LOG_PATH)
+	acceptUser := isAcceptUser(reply)
+	if acceptUser.AcceptUser {
+		utils.LogMessage("User accepted: "+strconv.Itoa(acceptUser.UserId), utils.RWSP_LOG_PATH)
 
-	zmqSocket.Send([]byte(msg.Data()), 0)
-	utils.LogMessage("Sending to game backend", utils.RWSP_LOG_PATH)
-	utils.LogMessage(msg.Data(), utils.RWSP_LOG_PATH)
-
-	reply, _ := zmqSocket.Recv(0)
-	utils.LogMessage("Reply received", utils.RWSP_LOG_PATH)
-	utils.LogMessage(string(reply), utils.RWSP_LOG_PATH)
-
-	accept, gameId, userId := isAcceptUser(reply)
-	if accept {
-		utils.LogMessage("User accepted: "+strconv.Itoa(userId), utils.RWSP_LOG_PATH)
+		gameId := strconv.Itoa(acceptUser.GameId)
 
 		// Create the channel to which to communicate with the subscribeConnection go routine
 		messageChannel := make(chan []byte)
-		connectionSyncChannels[socket] = messageChannel
 
 		// Create the zmq socket to use to subscribe to the appropriate game id
 		subSocket, _ := context.NewSocket(zmq.SUB)
 		subSocket.Connect("tcp://localhost:" + utils.GAME_PUB_SUB_PORT)
-		subSocket.SetSockOptString(zmq.SUBSCRIBE, strconv.Itoa(gameId))
-		utils.LogMessage("SUBCRIBER connected to port "+utils.GAME_REP_REQ_PORT+" with filter "+strconv.Itoa(gameId), utils.RWSP_LOG_PATH)
-		allListeners[socket] = subSocket
+		subSocket.SetSockOptString(zmq.SUBSCRIBE, gameId)
+		utils.LogMessage("SUBCRIBER connected to port "+utils.GAME_REP_REQ_PORT+" with filter "+strconv.Itoa(acceptUser.GameId), utils.RWSP_LOG_PATH)
+
+		// Keep in memory all the necessary information about the connection
+		userInfos[socket] = &UserInformation{
+			Socket:      subSocket,
+			SyncChannel: messageChannel,
+			Cookie:      acceptUser.UserCookie,
+			GameId:      gameId}
 
 		go subscribeConnection(socket)
 	}
@@ -160,34 +189,53 @@ func main() {
 	})
 
 	sio.OnDisconnect(func(c *socketio.Conn) {
-		utils.LogMessage("Disconnect!", utils.RWSP_LOG_PATH)
+		utils.LogMessage("Disconnect received", utils.RWSP_LOG_PATH)
 
-		// Close the subscribe zmq socket.
-		if allListeners[c] != nil {
-			// Need to synchronize with the receiveZmqMessages go routine
-			// because we can't close the socket until we stop polling it.
-			go func() {
-				<-refreshChan
-				allListeners[c].Close()
-				delete(allListeners, c)
-				deleteFinishChan <- true
-			}()
+		if userInfos[c] != nil {
+			// Close the subscribe zmq socket.
+			if userInfos[c].Socket != nil {
+
+				// Need to synchronize with the receiveZmqMessages go routine
+				// because we can't close the socket until we stop polling it.
+				go func(socket *zmq.Socket) {
+					<-refreshChan
+					socket.Close()
+					deleteFinishChan <- true
+				}(userInfos[c].Socket)
+
+				utils.LogMessage("Removing ZMQ socket from state", utils.RWSP_LOG_PATH)
+			}
+
+			// Close the channel used to communicate between the zmq sockets
+			// and the subscribeConnection go routine.
+			if userInfos[c].SyncChannel != nil {
+				userInfos[c].SyncChannel <- DISCONNECT_MESSAGE
+				close(userInfos[c].SyncChannel)
+			}
+			utils.LogMessage("Removing sync channel from state", utils.RWSP_LOG_PATH)
+
+			if userInfos[c].Cookie != "" {
+				rawMessage := make(map[string]interface{})
+				rawMessage[MESSAGE_KEY] = PLAYER_DISCONNECT_MESSAGE
+				rawMessage[USER_COOKIE_KEY] = userInfos[c].Cookie
+				rawMessage[GAME_ID_KEY] = userInfos[c].GameId
+				message, err := json.Marshal(rawMessage)
+				if err == nil {
+					go sendMessageToBackend(string(message), context)
+				} else {
+					utils.LogMessage("Could not send message to game backend:"+err.Error(), utils.RWSP_LOG_PATH)
+				}
+			}
+			utils.LogMessage("Removing cookie from state", utils.RWSP_LOG_PATH)
+
+			delete(userInfos, c)
 		}
 
-		// Close the channel used to communicate between the zmq sockets
-		// and the subscribeConnection go routine.
-		if connectionSyncChannels[c] != nil {
-			connectionSyncChannels[c] <- DISCONNECT_MESSAGE
-			close(connectionSyncChannels[c])
-			delete(connectionSyncChannels, c)
-		}
-
-		utils.LogMessage("Deleting connection from WSP", utils.RWSP_LOG_PATH)
-		// TODO: send message to backend on disconnect
+		utils.LogMessage("Finished deleting connection from WSP", utils.RWSP_LOG_PATH)
 	})
 
 	sio.OnMessage(func(c *socketio.Conn, msg socketio.Message) {
-		utils.LogMessage(c.String()+msg.Data(), utils.RWSP_LOG_PATH)
+		utils.LogMessage("Received message for "+c.String()+" with data:"+msg.Data(), utils.RWSP_LOG_PATH)
 		go handleMessage(msg, c, context)
 	})
 
