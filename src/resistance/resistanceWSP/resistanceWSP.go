@@ -60,11 +60,11 @@ func receiveZmqMessages() {
 			_, _ = zmq.Poll(pollItems, time.Second*3)
 			for _, pollItem := range pollItems {
 				// Check all items to see if we receive anything
-				if pollItem.REvents&zmq.POLLIN != 0 {
+				if pollItem.REvents == zmq.POLLIN {
 					multiPartMessage, err1 := pollItem.Socket.RecvMultipart(0)
-					game := multiPartMessage[0]
-					rest := multiPartMessage[1]
 					if err1 == nil {
+						game := multiPartMessage[0]
+						rest := multiPartMessage[1]
 						utils.LogMessage("got message on sub socket for game "+string(game)+":"+string(rest), utils.RWSP_LOG_PATH)
 						// In case we already closed the channel, we don't want to block on this
 						// If the channel is closed, the message can't go anywhere anyways.
@@ -77,12 +77,13 @@ func receiveZmqMessages() {
 			}
 			// Allow any disconnections to go through, so we don't error out
 			// during polling, since we might keep polling closed sockets
-			for {
+			continueWaitForRefresh := true
+			for continueWaitForRefresh {
 				select {
 				case refreshChan <- true:
 					<-deleteFinishChan
 				default:
-					break
+					continueWaitForRefresh = false
 				}
 			}
 		} else {
