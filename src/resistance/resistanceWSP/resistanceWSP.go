@@ -105,7 +105,6 @@ func receiveZmqMessages() {
 				}
 			}
 		} else {
-			utils.LogMessage("No connections found", utils.RWSP_LOG_PATH)
 			time.Sleep(time.Second * 3)
 		}
 	}
