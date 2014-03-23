@@ -48,12 +48,16 @@ func subscribeConnection(socket *socketio.Conn) {
 	messageChannel := userInfos[socket].SyncChannel
 
 	for {
-		message := <-messageChannel
-		if bytes.Equal(DISCONNECT_MESSAGE, message) {
-			utils.LogMessage("Disconnect message received.", utils.RWSP_LOG_PATH)
-			return
+		message, more := <-messageChannel
+		if more {
+			if bytes.Equal(DISCONNECT_MESSAGE, message) {
+				utils.LogMessage("Disconnect message received.", utils.RWSP_LOG_PATH)
+				return
+			} else {
+				socket.Send(message)
+			}
 		} else {
-			socket.Send(message)
+			return
 		}
 	}
 }
@@ -209,8 +213,12 @@ func main() {
 			// Close the channel used to communicate between the zmq sockets
 			// and the subscribeConnection go routine.
 			if userInfos[c].SyncChannel != nil {
-				userInfos[c].SyncChannel <- DISCONNECT_MESSAGE
-				close(userInfos[c].SyncChannel)
+				go func(channel chan []byte) {
+					<-refreshChan
+					userInfos[c].SyncChannel <- DISCONNECT_MESSAGE
+					close(channel)
+					deleteFinishChan <- true
+				}(userInfos[c].SyncChannel)
 			}
 			utils.LogMessage("Removing sync channel from state", utils.RWSP_LOG_PATH)
 
@@ -228,7 +236,12 @@ func main() {
 			}
 			utils.LogMessage("Removing cookie from state", utils.RWSP_LOG_PATH)
 
-			delete(userInfos, c)
+			// Need to wait for a signal to refresh before really deleting it
+			go func(connection *socketio.Conn) {
+				<-refreshChan
+				delete(userInfos, connection)
+				deleteFinishChan <- true
+			}(c)
 		}
 
 		utils.LogMessage("Finished deleting connection from WSP", utils.RWSP_LOG_PATH)
