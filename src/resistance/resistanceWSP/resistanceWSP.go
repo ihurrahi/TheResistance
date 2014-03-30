@@ -242,6 +242,9 @@ func main() {
 	// Setup Socket.IO
 	config := socketio.DefaultConfig
 	config.Origins = []string{"*:80"}
+	// Only use websockets
+	config.Transports = []socketio.Transport{socketio.NewWebsocketTransport(0, 5e9)}
+	config.HeartbeatInterval = time.Duration(time.Second * 5)
 	sio := socketio.NewSocketIO(&config)
 
 	sio.OnConnect(func(c *socketio.Conn) {
