@@ -178,6 +178,62 @@ func handleMessage(msg socketio.Message, socket *socketio.Conn, context *zmq.Con
 	utils.LogMessage("Sent to frontend", utils.RWSP_LOG_PATH)
 }
 
+// handleDisconnect handles the case where a connection is disconnecetd.
+// We should clean up our state to reflect that
+func handleDisconnect(connection *socketio.Conn, context *zmq.Context) {
+
+	if userInfos[connection] != nil {
+		// Close the subscribe zmq socket.
+		if userInfos[connection].Socket != nil {
+
+			// Need to synchronize with the receiveZmqMessages go routine
+			// because we can't close the socket until we stop polling it.
+			go func(socket *zmq.Socket) {
+				<-refreshChan
+				socket.Close()
+				deleteFinishChan <- true
+			}(userInfos[connection].Socket)
+
+			utils.LogMessage("Removing ZMQ socket from state", utils.RWSP_LOG_PATH)
+		}
+
+		// Close the channel used to communicate between the zmq sockets
+		// and the subscribeConnection go routine.
+		if userInfos[connection].SyncChannel != nil {
+			go func(channel chan []byte) {
+				<-refreshChan
+				userInfos[connection].SyncChannel <- DISCONNECT_MESSAGE
+				close(channel)
+				deleteFinishChan <- true
+			}(userInfos[connection].SyncChannel)
+		}
+		utils.LogMessage("Removing sync channel from state", utils.RWSP_LOG_PATH)
+
+		if userInfos[connection].Cookie != "" {
+			rawMessage := make(map[string]interface{})
+			rawMessage[MESSAGE_KEY] = PLAYER_DISCONNECT_MESSAGE
+			rawMessage[USER_COOKIE_KEY] = userInfos[connection].Cookie
+			rawMessage[GAME_ID_KEY] = userInfos[connection].GameId
+			message, err := json.Marshal(rawMessage)
+			if err == nil {
+				go sendMessageToBackend(string(message), context)
+			} else {
+				utils.LogMessage("Could not send message to game backend:"+err.Error(), utils.RWSP_LOG_PATH)
+			}
+		}
+		utils.LogMessage("Removing cookie from state", utils.RWSP_LOG_PATH)
+
+		// Need to wait for a signal to refresh before really deleting it
+		go func(connection *socketio.Conn) {
+			<-refreshChan
+			delete(userInfos, connection)
+			deleteFinishChan <- true
+		}(connection)
+	}
+
+	utils.LogMessage("Finished deleting connection from WSP", utils.RWSP_LOG_PATH)
+}
+
 func main() {
 	// Setup ZMQ
 	context, _ := zmq.NewContext()
@@ -193,57 +249,7 @@ func main() {
 
 	sio.OnDisconnect(func(c *socketio.Conn) {
 		utils.LogMessage("Disconnect received", utils.RWSP_LOG_PATH)
-
-		if userInfos[c] != nil {
-			// Close the subscribe zmq socket.
-			if userInfos[c].Socket != nil {
-
-				// Need to synchronize with the receiveZmqMessages go routine
-				// because we can't close the socket until we stop polling it.
-				go func(socket *zmq.Socket) {
-					<-refreshChan
-					socket.Close()
-					deleteFinishChan <- true
-				}(userInfos[c].Socket)
-
-				utils.LogMessage("Removing ZMQ socket from state", utils.RWSP_LOG_PATH)
-			}
-
-			// Close the channel used to communicate between the zmq sockets
-			// and the subscribeConnection go routine.
-			if userInfos[c].SyncChannel != nil {
-				go func(channel chan []byte) {
-					<-refreshChan
-					userInfos[c].SyncChannel <- DISCONNECT_MESSAGE
-					close(channel)
-					deleteFinishChan <- true
-				}(userInfos[c].SyncChannel)
-			}
-			utils.LogMessage("Removing sync channel from state", utils.RWSP_LOG_PATH)
-
-			if userInfos[c].Cookie != "" {
-				rawMessage := make(map[string]interface{})
-				rawMessage[MESSAGE_KEY] = PLAYER_DISCONNECT_MESSAGE
-				rawMessage[USER_COOKIE_KEY] = userInfos[c].Cookie
-				rawMessage[GAME_ID_KEY] = userInfos[c].GameId
-				message, err := json.Marshal(rawMessage)
-				if err == nil {
-					go sendMessageToBackend(string(message), context)
-				} else {
-					utils.LogMessage("Could not send message to game backend:"+err.Error(), utils.RWSP_LOG_PATH)
-				}
-			}
-			utils.LogMessage("Removing cookie from state", utils.RWSP_LOG_PATH)
-
-			// Need to wait for a signal to refresh before really deleting it
-			go func(connection *socketio.Conn) {
-				<-refreshChan
-				delete(userInfos, connection)
-				deleteFinishChan <- true
-			}(c)
-		}
-
-		utils.LogMessage("Finished deleting connection from WSP", utils.RWSP_LOG_PATH)
+		go handleDisconnect(c, context)
 	})
 
 	sio.OnMessage(func(c *socketio.Conn, msg socketio.Message) {
