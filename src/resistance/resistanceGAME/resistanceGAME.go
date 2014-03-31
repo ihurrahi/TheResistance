@@ -48,6 +48,8 @@ const (
 	APPROVE_TEAM_MESSAGE        = "approveTeam"
 	QUERY_IS_ON_MISSION_MESSAGE = "queryIsOnMission"
 	MISSION_OUTCOME_MESSAGE     = "missionOutcome"
+	GAME_PAUSE_MESSAGE          = "gamePause"
+	GAME_RESUME_MESSAGE         = "gameResume"
 
 	// messages sent to the frontend
 	PLAYER_CONNECT_SUCCESSFUL_MESSAGE  = "playerConnectSuccessful"
@@ -115,8 +117,7 @@ func handleIsValidGame(gameIdString string, requestUser *users.User) map[string]
 			}
 		case gameStatus == game.STATUS_LOBBY:
 			// make sure we're not going over the limit of 10 players
-			// getPlayers() handles duplicate players
-			if len(getPlayers(requestedGame)) >= 10 {
+			if len(requestedGame.GetUsers()) >= 10 {
 				gameInfo[ERROR_KEY] = "Game has reached maximum capacity"
 				return gameInfo
 			}
@@ -166,6 +167,18 @@ func handlePlayerConnect(currentGame *game.Game, connectingPlayer *users.User, p
 		returnMessage[IS_HOST_KEY] = true
 	}
 
+	// If this connection was for a game that is already started,
+	// we may need to unblock the game.
+	if currentGame.GameStatus == game.STATUS_IN_PROGRESS {
+		err := currentGame.Validate()
+		if err == nil {
+			// Everything is good with the game, unblock game.
+			var unblockMessage = make(map[string]interface{})
+			unblockMessage[MESSAGE_KEY] = GAME_RESUME_MESSAGE
+			sendMessageToSubscribers(gameId, unblockMessage, pubSocket)
+		}
+	}
+
 	return returnMessage
 }
 
@@ -174,11 +187,19 @@ func handlePlayerConnect(currentGame *game.Game, connectingPlayer *users.User, p
 func handlePlayerDisconnect(currentGame *game.Game, connectingPlayer *users.User, pubSocket *zmq.Socket) map[string]interface{} {
 	var returnMessage = make(map[string]interface{})
 
-	currentGame.RemovePlayer(connectingPlayer)
+	currentGame.PlayerDisconnect(connectingPlayer)
 	sendMessageToSubscribers(currentGame.GameId, getPlayersMessage(currentGame), pubSocket)
 
-	// TODO: handle the case where someone disconnects in the middle of the game
-	// TODO: as the above only handles the case where the game has not started yet
+	// If the game is invalid, the disconnect caused a player to completely
+	// disconnect. Therefore, we should block the game until they reconnect.
+	if currentGame.GameStatus == game.STATUS_IN_PROGRESS {
+		err := currentGame.Validate()
+		if err != nil {
+			var blockMessage = make(map[string]interface{})
+			blockMessage[MESSAGE_KEY] = GAME_PAUSE_MESSAGE
+			sendMessageToSubscribers(currentGame.GameId, blockMessage, pubSocket)
+		}
+	}
 
 	return returnMessage
 }
@@ -247,7 +268,7 @@ func handleQueryLeader(currentGame *game.Game, player *users.User) map[string]in
 	returnMessage[IS_LEADER_KEY] = isLeader
 
 	if isLeader {
-		returnMessage[PLAYERS_KEY] = getPlayers(currentGame)
+		returnMessage[PLAYERS_KEY] = currentGame.GetUsers()
 		returnMessage[TEAM_SIZE_KEY] = currentGame.GetCurrentMission().GetCurrentMissionTeamSize()
 	}
 
@@ -419,25 +440,12 @@ func getPlayersMessage(currentGame *game.Game) map[string]interface{} {
 // getPlayerUsernames retrieves just the usernames of the players of the
 // current game.
 func getPlayerUsernames(currentGame *game.Game) []string {
-	users := getPlayers(currentGame)
+	users := currentGame.GetUsers()
 	var usernames = make([]string, len(users))
 	for index, user := range users {
 		usernames[index] = user.Username
 	}
 	return usernames
-}
-
-// getPlayers retrieves just the users from the players of the current game.
-func getPlayers(currentGame *game.Game) []*users.User {
-	var uniqueUsers = make([]*users.User, 0)
-	var allUsers = make(map[int]bool)
-	for _, player := range currentGame.Players {
-		if !allUsers[player.User.UserId] {
-			uniqueUsers = append(uniqueUsers, player.User)
-			allUsers[player.User.UserId] = true
-		}
-	}
-	return uniqueUsers
 }
 
 // parseMessage parses every message that comes in and puts it into a Go struct.

@@ -64,20 +64,46 @@ func NewGame(gameTitle string, hostId string, persister GamePersistor) *Game {
 	return newGame
 }
 
-// AddPlayer adds the given user as a player to the game.
-func (game *Game) AddPlayer(user *users.User) {
-	newPlayer := NewPlayer(game, user)
-	game.Players = append(game.Players, newPlayer)
+func (game *Game) GetUsers() []*users.User {
+	var users = make([]*users.User, 0)
+	for _, player := range game.Players {
+		if player.IsValid() && player.GetConnections() > 0 {
+			users = append(users, player.User)
+		}
+	}
+	return users
 }
 
-// RemovePlayer removes the given user from the game.
-// Note that this only removes the first one found and
-// will leave duplicates in, if any.
-func (game *Game) RemovePlayer(user *users.User) {
-	for index, player := range game.Players {
-		if player.User.UserId == user.UserId {
-			game.Players = append(game.Players[:index], game.Players[index+1:]...)
+func (game *Game) getPlayer(userId int) *Player {
+	for _, player := range game.Players {
+		if player.User.UserId == userId {
+			return player
 		}
+	}
+	return DUMMY_PLAYER
+}
+
+// AddPlayer adds the given user as a player to the game.
+func (game *Game) AddPlayer(user *users.User) {
+	newPlayer := game.getPlayer(user.UserId)
+
+	if newPlayer.IsValid() {
+		newPlayer.AddConnection()
+	} else {
+		newPlayer := NewPlayer(game, user)
+		game.Players = append(game.Players, newPlayer)
+	}
+}
+
+// PlayerDisconnect handles when a player disconnects.
+// The number of connections on a player indicate
+// how many players of that user is connected. When one
+// disconnects, we need to keep track of that.
+func (game *Game) PlayerDisconnect(user *users.User) {
+	player := game.getPlayer(user.UserId)
+
+	if player.IsValid() {
+		player.RemoveConnection()
 	}
 }
 
@@ -119,9 +145,20 @@ func (game *Game) Validate() error {
 	if game.Host == nil {
 		return errors.New("No host found for this game.")
 	}
+
+	// Validate the number of players
 	var numPlayers = len(game.Players)
 	if numPlayers < 5 || numPlayers > 10 {
 		return errors.New("Resistance does not support " + strconv.Itoa(numPlayers) + " players")
+	}
+
+	// Validate all players have at least one connection open
+	if game.GameStatus == STATUS_IN_PROGRESS {
+		for _, player := range game.Players {
+			if player.GetConnections() <= 0 {
+				return errors.New("Not all players are connected")
+			}
+		}
 	}
 
 	return nil
@@ -223,8 +260,8 @@ func (game *Game) GetMissionInfo() []map[string]interface{} {
 
 // IsPlayer determines whether the given user is a part of that game.
 func (game *Game) IsPlayer(unknownUser *users.User) bool {
-	for _, user := range game.Players {
-		if user.User.UserId == unknownUser.UserId {
+	for _, player := range game.Players {
+		if player.User.UserId == unknownUser.UserId {
 			return true
 		}
 	}
