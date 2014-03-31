@@ -148,6 +148,9 @@ func handlePlayerConnect(currentGame *game.Game, connectingPlayer *users.User, p
 	var returnMessage = make(map[string]interface{})
 	gameId := currentGame.GameId
 
+	err := currentGame.Validate()
+	blockedGame := err != nil
+
 	// Add the user to the players for this game
 	currentGame.AddPlayer(connectingPlayer)
 
@@ -167,9 +170,9 @@ func handlePlayerConnect(currentGame *game.Game, connectingPlayer *users.User, p
 		returnMessage[IS_HOST_KEY] = true
 	}
 
-	// If this connection was for a game that is already started,
-	// we may need to unblock the game.
-	if currentGame.GameStatus == game.STATUS_IN_PROGRESS {
+	// If this connection was for a game that is already started, and
+	// was blocked, this connection might be the one to unblock it.
+	if currentGame.GameStatus == game.STATUS_IN_PROGRESS && blockedGame {
 		err := currentGame.Validate()
 		if err == nil {
 			// Everything is good with the game, unblock game.
