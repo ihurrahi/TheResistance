@@ -50,6 +50,12 @@ function handleMessage(message) {
     case "missions":
       handleMissions(object);
       break;
+    case "gameResume":
+      handleGameResume(object);
+      break;
+    case "gamePause":
+      handleGamePause(object);
+      break;
     default:
       // used for debugging
       // alert("Unknown message: " + object.message);
@@ -323,6 +329,22 @@ function handleMissions(parsedMessage) {
   }
 
   missionInfoDiv.appendChild(table);
+}
+
+function handleGameResume(parsedMessage) {
+  var overlayMessage = document.getElementById("overlayMessage");
+  overlayMessage.style.display = "none";
+
+  var overlayDiv = document.getElementById("overlay");
+  overlayDiv.style.display = "none";
+}
+
+function handleGamePause(parsedMessage) {
+  var overlayMessage = document.getElementById("overlayMessage");
+  overlayMessage.style.display = "block";
+
+  var overlayDiv = document.getElementById("overlay");
+  overlayDiv.style.display = "block";
 }
 
 function addBreak(divElement) {

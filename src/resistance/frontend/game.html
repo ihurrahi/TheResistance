@@ -4,27 +4,33 @@
 <link rel="stylesheet" type="text/css" href="game.css">
 <script src="socket.io.js"></script>
 <script src="game.js"></script>
-</head>
 
 <title>
 Game
 </title>
+</head>
+
 
 <body>
+  <div id="overlay">
+  </div>
+  <div id="overlayMessage">
+	Waiting for all players to join...
+  </div>
 
   <div id="gameInformation">
     <div id="gameTitle" class="borderDiv">
       Game: {{.GameTitle}}
     </div>
-  
+
     <div id="roleInfo" class="borderDiv">
-      Role: 
+      Role:
     </div>
 
     <div id="missionInfo" class="borderDiv">
     Missions:
     </div>
-    
+
     <div id="playerInfo" class="borderDiv">
     Current players:
       <table id="players">
