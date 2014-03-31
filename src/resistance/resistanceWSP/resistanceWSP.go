@@ -17,6 +17,7 @@ const (
 	PLAYER_DISCONNECT_MESSAGE = "playerDisconnect"
 	USER_COOKIE_KEY           = "userCookie"
 	GAME_ID_KEY               = "gameId"
+	DEFAULT_BUFFER_SIZE       = 5
 )
 
 type AcceptUser struct {
@@ -156,7 +157,7 @@ func handleMessage(msg socketio.Message, socket *socketio.Conn, context *zmq.Con
 		gameId := strconv.Itoa(acceptUser.GameId)
 
 		// Create the channel to which to communicate with the subscribeConnection go routine
-		messageChannel := make(chan []byte)
+		messageChannel := make(chan []byte, DEFAULT_BUFFER_SIZE)
 
 		// Create the zmq socket to use to subscribe to the appropriate game id
 		subSocket, _ := context.NewSocket(zmq.SUB)
