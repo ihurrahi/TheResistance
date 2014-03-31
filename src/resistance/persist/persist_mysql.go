@@ -251,8 +251,7 @@ func (persister *Persister) PersistGame(currentGame *game.Game) error {
 		// Persist all the players. Stop on error.
 		for _, player := range currentGame.Players {
 			// We want to not persist players with no connections
-			if player.IsValid() && !(currentGame.GameStatus == game.STATUS_IN_PROGRESS && player.GetConnections() <= 0) {
-
+			if player.IsValid() {
 				err = persister.persistPlayer(player)
 				if err != nil {
 					return err

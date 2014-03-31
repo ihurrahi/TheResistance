@@ -169,6 +169,15 @@ func (game *Game) Validate() error {
 // 1. setting the status to IN_PROGRESS
 // 2. setting up the player roles
 func (game *Game) StartGame() error {
+	// Purge all players with no connections
+	var newPlayers = make([]*Player, 0)
+	for _, player := range game.Players {
+		if player.GetConnections() > 0 {
+			newPlayers = append(newPlayers, player)
+		}
+	}
+	game.Players = newPlayers
+
 	if err := game.Validate(); err != nil {
 		return err
 	}
