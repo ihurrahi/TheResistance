@@ -91,6 +91,7 @@ func (game *Game) AddPlayer(user *users.User) {
 		newPlayer.AddConnection()
 	} else {
 		newPlayer := NewPlayer(game, user)
+		newPlayer.AddConnection()
 		game.Players = append(game.Players, newPlayer)
 	}
 }

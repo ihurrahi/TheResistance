@@ -250,9 +250,13 @@ func (persister *Persister) PersistGame(currentGame *game.Game) error {
 
 		// Persist all the players. Stop on error.
 		for _, player := range currentGame.Players {
-			err = persister.persistPlayer(player)
-			if err != nil {
-				return err
+			// We want to not persist players with no connections
+			if player.IsValid() && !(currentGame.GameStatus == game.STATUS_IN_PROGRESS && player.GetConnections() <= 0) {
+
+				err = persister.persistPlayer(player)
+				if err != nil {
+					return err
+				}
 			}
 		}
 
@@ -312,6 +316,9 @@ func (persister *Persister) retrieveGame(gameId int) *game.Game {
 	err1 := persister.db.QueryRow(GAME_READ_QUERY, gameId).Scan(&gameTitle, &hostId, &hostUsername, &gameStatus)
 	rows, err2 := persister.db.Query(PLAYERS_READ_QUERY, gameId)
 	if err1 == nil && err2 == nil {
+		defer rows.Close()
+
+		// Build up game itself
 		retrievedGame = new(game.Game)
 		retrievedGame.Title = gameTitle
 		retrievedGame.GameId = gameId
@@ -325,6 +332,7 @@ func (persister *Persister) retrieveGame(gameId int) *game.Game {
 
 		retrievedGame.Persister = persister
 
+		// Build up players
 		for rows.Next() {
 			var playerRole string
 			var userId int
@@ -335,6 +343,7 @@ func (persister *Persister) retrieveGame(gameId int) *game.Game {
 				user.UserId = userId
 				user.Username = username
 				newPlayer := game.NewPlayer(retrievedGame, user)
+				newPlayer.Role = playerRole
 				retrievedGame.Players = append(retrievedGame.Players, newPlayer)
 			}
 		}
