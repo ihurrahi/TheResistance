@@ -309,20 +309,35 @@ func (persister *Persister) retrieveGame(gameId int) *game.Game {
 	var hostUsername string
 	var gameStatus string
 
-	err := persister.db.QueryRow(GAME_READ_QUERY, gameId).Scan(&gameTitle, &hostId, &hostUsername, &gameStatus)
-	if err == nil {
+	err1 := persister.db.QueryRow(GAME_READ_QUERY, gameId).Scan(&gameTitle, &hostId, &hostUsername, &gameStatus)
+	rows, err2 := persister.db.Query(PLAYERS_READ_QUERY, gameId)
+	if err1 == nil && err2 == nil {
 		retrievedGame = new(game.Game)
 		retrievedGame.Title = gameTitle
 		retrievedGame.GameId = gameId
 		retrievedGame.GameStatus = gameStatus
 
-		user := new(users.User)
-		user.UserId = hostId
-		user.Username = hostUsername
+		hostUser := new(users.User)
+		hostUser.UserId = hostId
+		hostUser.Username = hostUsername
 
-		retrievedGame.Host = user
+		retrievedGame.Host = hostUser
 
 		retrievedGame.Persister = persister
+
+		for rows.Next() {
+			var playerRole string
+			var userId int
+			var username string
+			err3 := rows.Scan(&playerRole, &userId, &username)
+			if err3 == nil {
+				user := new(users.User)
+				user.UserId = userId
+				user.Username = username
+				newPlayer := game.NewPlayer(retrievedGame, user)
+				retrievedGame.Players = append(retrievedGame.Players, newPlayer)
+			}
+		}
 	}
 
 	return retrievedGame
