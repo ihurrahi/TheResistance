@@ -201,6 +201,17 @@ func (mission *Mission) GetMissionInfo() map[string]interface{} {
 		missionInfo["numFails"] = ""
 	}
 
+	teamUsernames := make([]string, 0)
+	for userId, _ := range mission.Team {
+		user := users.LookupUserById(userId)
+		if user.IsValidUser() {
+			teamUsernames = append(teamUsernames, user.Username)
+		}
+	}
+	missionInfo["team"] = teamUsernames
+
+	// TODO: implement votes - number of votes or who voted what?
+
 	return missionInfo
 }
 
