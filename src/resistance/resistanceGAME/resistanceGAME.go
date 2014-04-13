@@ -105,8 +105,8 @@ func handleIsValidGame(gameIdString string, requestUser *users.User) map[string]
 		return gameInfo
 	}
 
-	requestedGame := persister.ReadGame(gameId)
-	if requestedGame != nil {
+	requestedGame, err := persister.ReadGame(gameId)
+	if requestedGame != nil && err == nil {
 		gameStatus := requestedGame.GameStatus
 		switch {
 		default:
@@ -202,14 +202,7 @@ func handlePlayerDisconnect(currentGame *game.Game, connectingPlayer *users.User
 
 	// If the game is invalid, the disconnect caused a player to completely
 	// disconnect. Therefore, we should block the game until they reconnect.
-	if currentGame.GameStatus == game.STATUS_IN_PROGRESS {
-		err := currentGame.Validate()
-		if err != nil {
-			var blockMessage = make(map[string]interface{})
-			blockMessage[MESSAGE_KEY] = GAME_PAUSE_MESSAGE
-			sendMessageToSubscribers(currentGame.GameId, blockMessage, pubSocket)
-		}
-	}
+	pauseGameIfNeeded(currentGame, pubSocket)
 
 	return returnMessage
 }
@@ -443,6 +436,8 @@ func handleMissionOutcome(message map[string]interface{}, currentGame *game.Game
 func handleUpdateGameProgress(message map[string]interface{}, currentGame *game.Game, connectingPlayer *users.User, pubSocket *zmq.Socket) map[string]interface{} {
 	sendMissionsMessage(currentGame, pubSocket)
 
+	pauseGameIfNeeded(currentGame, pubSocket)
+
 	returnMessage := make(map[string]interface{})
 
 	// We assume the that game is IN_PROGRESS status, since we only allow them
@@ -479,6 +474,18 @@ func handleUpdateGameProgress(message map[string]interface{}, currentGame *game.
 	}
 
 	return returnMessage
+}
+
+// pauseGameIfNeeded checks if the game needs to paused because of an
+// invalid game (usually not all players are present)
+func pauseGameIfNeeded(currentGame *game.Game, pubSocket *zmq.Socket) {
+	if currentGame.GameStatus == game.STATUS_IN_PROGRESS {
+		err := currentGame.Validate()
+		if err != nil {
+			var blockMessage = getGamePauseMessage()
+			sendMessageToSubscribers(currentGame.GameId, blockMessage, pubSocket)
+		}
+	}
 }
 
 // getPlayersMessage builds up the message to update the list of
@@ -519,6 +526,12 @@ func getShowTextMessage(text string) map[string]interface{} {
 	showTextMessage[MESSAGE_KEY] = SHOW_TEXT_MESSAGE
 	showTextMessage[TEXT_KEY] = text
 	return showTextMessage
+}
+
+func getGamePauseMessage() map[string]interface{} {
+	var gamePauseMessage = make(map[string]interface{})
+	gamePauseMessage[MESSAGE_KEY] = GAME_PAUSE_MESSAGE
+	return gamePauseMessage
 }
 
 // getPlayerUsernames retrieves just the usernames of the players of the
@@ -625,40 +638,45 @@ func main() {
 			// Rest of game related activity
 			gameId, err := strconv.Atoi(gameIdString)
 
+			// TODO should we send a failure message here?
 			if err == nil {
 
-				currentGame := persister.ReadGame(gameId)
+				currentGame, err := persister.ReadGame(gameId)
 
-				switch {
-				default:
-				case user == nil:
-				case parsedMessage[MESSAGE_KEY] == CREATE_GAME_MESSAGE:
-					returnMessage = handleCreateGame(parsedMessage, user)
-				case parsedMessage[MESSAGE_KEY] == PLAYER_CONNECT_MESSAGE:
-					returnMessage = handlePlayerConnect(currentGame, user, pubSocket)
-					if parsedMessage[USER_COOKIE_KEY] != nil {
-						returnMessage[USER_COOKIE_KEY] = parsedMessage[USER_COOKIE_KEY]
+				// TODO should we send a failure message here?
+				if err == nil {
+
+					switch {
+					default:
+					case user == nil:
+					case parsedMessage[MESSAGE_KEY] == CREATE_GAME_MESSAGE:
+						returnMessage = handleCreateGame(parsedMessage, user)
+					case parsedMessage[MESSAGE_KEY] == PLAYER_CONNECT_MESSAGE:
+						returnMessage = handlePlayerConnect(currentGame, user, pubSocket)
+						if parsedMessage[USER_COOKIE_KEY] != nil {
+							returnMessage[USER_COOKIE_KEY] = parsedMessage[USER_COOKIE_KEY]
+						}
+					case parsedMessage[MESSAGE_KEY] == PLAYER_DISCONNECT_MESSAGE:
+						returnMessage = handlePlayerDisconnect(currentGame, user, pubSocket)
+					case parsedMessage[MESSAGE_KEY] == GET_PLAYERS_MESSAGE:
+						returnMessage = handleGetPlayers(currentGame)
+					case parsedMessage[MESSAGE_KEY] == START_GAME_MESSAGE:
+						returnMessage = handleStartGame(currentGame, user, pubSocket)
+					case parsedMessage[MESSAGE_KEY] == QUERY_ROLE_MESSAGE:
+						returnMessage = handleQueryRole(currentGame, user)
+					case parsedMessage[MESSAGE_KEY] == QUERY_LEADER_MESSAGE:
+						returnMessage = handleQueryLeader(currentGame, user)
+					case parsedMessage[MESSAGE_KEY] == START_MISSION_MESSAGE:
+						returnMessage = handleStartMission(parsedMessage, currentGame, user, pubSocket)
+					case parsedMessage[MESSAGE_KEY] == APPROVE_TEAM_MESSAGE:
+						returnMessage = handleApproveTeam(parsedMessage, currentGame, user, pubSocket)
+					case parsedMessage[MESSAGE_KEY] == QUERY_IS_ON_MISSION_MESSAGE:
+						returnMessage = handleQueryIsOnMission(currentGame, user)
+					case parsedMessage[MESSAGE_KEY] == MISSION_OUTCOME_MESSAGE:
+						returnMessage = handleMissionOutcome(parsedMessage, currentGame, user, pubSocket)
+					case parsedMessage[MESSAGE_KEY] == UPDATE_GAME_PROGRESS:
+						returnMessage = handleUpdateGameProgress(parsedMessage, currentGame, user, pubSocket)
 					}
-				case parsedMessage[MESSAGE_KEY] == PLAYER_DISCONNECT_MESSAGE:
-					returnMessage = handlePlayerDisconnect(currentGame, user, pubSocket)
-				case parsedMessage[MESSAGE_KEY] == GET_PLAYERS_MESSAGE:
-					returnMessage = handleGetPlayers(currentGame)
-				case parsedMessage[MESSAGE_KEY] == START_GAME_MESSAGE:
-					returnMessage = handleStartGame(currentGame, user, pubSocket)
-				case parsedMessage[MESSAGE_KEY] == QUERY_ROLE_MESSAGE:
-					returnMessage = handleQueryRole(currentGame, user)
-				case parsedMessage[MESSAGE_KEY] == QUERY_LEADER_MESSAGE:
-					returnMessage = handleQueryLeader(currentGame, user)
-				case parsedMessage[MESSAGE_KEY] == START_MISSION_MESSAGE:
-					returnMessage = handleStartMission(parsedMessage, currentGame, user, pubSocket)
-				case parsedMessage[MESSAGE_KEY] == APPROVE_TEAM_MESSAGE:
-					returnMessage = handleApproveTeam(parsedMessage, currentGame, user, pubSocket)
-				case parsedMessage[MESSAGE_KEY] == QUERY_IS_ON_MISSION_MESSAGE:
-					returnMessage = handleQueryIsOnMission(currentGame, user)
-				case parsedMessage[MESSAGE_KEY] == MISSION_OUTCOME_MESSAGE:
-					returnMessage = handleMissionOutcome(parsedMessage, currentGame, user, pubSocket)
-				case parsedMessage[MESSAGE_KEY] == UPDATE_GAME_PROGRESS:
-					returnMessage = handleUpdateGameProgress(parsedMessage, currentGame, user, pubSocket)
 				}
 			}
 		}
