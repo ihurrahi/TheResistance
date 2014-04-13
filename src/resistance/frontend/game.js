@@ -56,6 +56,9 @@ function handleMessage(message) {
     case "gamePause":
       handleGamePause(object);
       break;
+    case "showText":
+      handleShowText(object);
+      break;
     default:
       // used for debugging
       // alert("Unknown message: " + object.message);
@@ -85,6 +88,10 @@ function handlePlayerConnectSuccessful(parsedMessage) {
     actionDiv.appendChild(startButton);
   } else {
     actionDiv.appendChild(document.createTextNode("Waiting for host to start game..."));
+  }
+
+  if (parsedMessage.updateGameProgress) {
+    sendResistanceMessage("updateGameProgress");
   }
 
   sendResistanceMessage("getPlayers");
@@ -202,8 +209,6 @@ function handleQueryLeaderResult(parsedMessage) {
     form.appendChild(submitButton);
 
     actionDiv.appendChild(form);
-  } else {
-    actionDiv.appendChild(document.createTextNode("You are not the leader."));
   }
 }
 
@@ -282,8 +287,6 @@ function handleQueryIsOnMissionResult(parsedMessage) {
       sendResistanceMessage("missionOutcome", {"outcome":false});
     }
     actionDiv.appendChild(failButton);
-  } else {
-    actionDiv.appendChild(document.createTextNode("Waiting for mission to finish..."));
   }
 }
 
@@ -345,6 +348,12 @@ function handleGamePause(parsedMessage) {
 
   var overlayDiv = document.getElementById("overlay");
   overlayDiv.style.display = "block";
+}
+
+function handleShowText(parsedMessage) {
+  clearActionDiv();
+  var actionDiv = document.getElementById("action");
+  actionDiv.appendChild(document.createTextNode(parsedMessage.text));
 }
 
 function addBreak(divElement) {

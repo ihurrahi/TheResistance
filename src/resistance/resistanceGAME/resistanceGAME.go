@@ -13,26 +13,28 @@ import (
 )
 
 const (
-	USER_COOKIE_KEY   = "userCookie"
-	MESSAGE_KEY       = "message"
-	GAME_TITLE_KEY    = "title"
-	HOST_ID_KEY       = "hostId"
-	GAME_ID_KEY       = "gameId"
-	IS_HOST_KEY       = "isHost"
-	PLAYERS_KEY       = "players"
-	ACCEPT_USER_KEY   = "acceptUser"
-	USER_ID_KEY       = "userId"
-	ROLE_KEY          = "role"
-	IS_LEADER_KEY     = "isLeader"
-	TEAMS_KEY         = "team"
-	TEAM_SIZE_KEY     = "teamSize"
-	VOTE_KEY          = "vote"
-	USERNAME_KEY      = "username"
-	IS_ON_MISSION_KEY = "isOnMission"
-	OUTCOME_KEY       = "outcome"
-	GAME_WINNER_KEY   = "winner"
-	MISSIONS_KEY      = "missions"
-	ERROR_KEY         = "error"
+	USER_COOKIE_KEY          = "userCookie"
+	MESSAGE_KEY              = "message"
+	GAME_TITLE_KEY           = "title"
+	HOST_ID_KEY              = "hostId"
+	GAME_ID_KEY              = "gameId"
+	IS_HOST_KEY              = "isHost"
+	PLAYERS_KEY              = "players"
+	ACCEPT_USER_KEY          = "acceptUser"
+	USER_ID_KEY              = "userId"
+	ROLE_KEY                 = "role"
+	IS_LEADER_KEY            = "isLeader"
+	TEAMS_KEY                = "team"
+	TEAM_SIZE_KEY            = "teamSize"
+	VOTE_KEY                 = "vote"
+	USERNAME_KEY             = "username"
+	IS_ON_MISSION_KEY        = "isOnMission"
+	OUTCOME_KEY              = "outcome"
+	GAME_WINNER_KEY          = "winner"
+	MISSIONS_KEY             = "missions"
+	ERROR_KEY                = "error"
+	UPDATE_GAME_PROGRESS_KEY = "updateGameProgress"
+	TEXT_KEY                 = "text"
 
 	// messages received from the frontend
 	GET_ALL_GAMES_MESSAGE       = "getAllGames"
@@ -50,6 +52,7 @@ const (
 	MISSION_OUTCOME_MESSAGE     = "missionOutcome"
 	GAME_PAUSE_MESSAGE          = "gamePause"
 	GAME_RESUME_MESSAGE         = "gameResume"
+	UPDATE_GAME_PROGRESS        = "updateGameProgress"
 
 	// messages sent to the frontend
 	PLAYER_CONNECT_SUCCESSFUL_MESSAGE  = "playerConnectSuccessful"
@@ -64,6 +67,7 @@ const (
 	QUERY_IS_ON_MISSION_RESULT_MESSAGE = "queryIsOnMissionResult"
 	GAME_OVER_MESSAGE                  = "gameOver"
 	MISSIONS_MESSAGE                   = "missions"
+	SHOW_TEXT_MESSAGE                  = "showText"
 )
 
 var persister *persist.Persister
@@ -73,7 +77,7 @@ func init() {
 }
 
 // handleCreateGame handlers the message that is sent when a
-// request is made from the HTTP module to create a new game
+// request is made from the HTTP module to create a new game.
 func handleCreateGame(parsedMessage map[string]interface{}, connectingPlayer *users.User) map[string]interface{} {
 	var returnMessage = make(map[string]interface{})
 	newGame := game.NewGame(parsedMessage[GAME_TITLE_KEY].(string), parsedMessage[HOST_ID_KEY].(string), persister)
@@ -84,7 +88,7 @@ func handleCreateGame(parsedMessage map[string]interface{}, connectingPlayer *us
 }
 
 // handleIsValidGame takes in a game id and validates that it is
-// ok for the given user to join the given game
+// ok for the given user to join the given game.
 func handleIsValidGame(gameIdString string, requestUser *users.User) map[string]interface{} {
 	gameInfo := make(map[string]interface{})
 
@@ -172,13 +176,16 @@ func handlePlayerConnect(currentGame *game.Game, connectingPlayer *users.User, p
 
 	// If this connection was for a game that is already started, and
 	// was blocked, this connection might be the one to unblock it.
-	if currentGame.GameStatus == game.STATUS_IN_PROGRESS && blockedGame {
-		err := currentGame.Validate()
-		if err == nil {
-			// Everything is good with the game, unblock game.
-			var unblockMessage = make(map[string]interface{})
-			unblockMessage[MESSAGE_KEY] = GAME_RESUME_MESSAGE
-			sendMessageToSubscribers(gameId, unblockMessage, pubSocket)
+	if currentGame.GameStatus == game.STATUS_IN_PROGRESS {
+		returnMessage[UPDATE_GAME_PROGRESS_KEY] = true
+		if blockedGame {
+			err := currentGame.Validate()
+			if err == nil {
+				// Everything is good with the game, unblock game.
+				var unblockMessage = make(map[string]interface{})
+				unblockMessage[MESSAGE_KEY] = GAME_RESUME_MESSAGE
+				sendMessageToSubscribers(gameId, unblockMessage, pubSocket)
+			}
 		}
 	}
 
@@ -208,7 +215,7 @@ func handlePlayerDisconnect(currentGame *game.Game, connectingPlayer *users.User
 }
 
 // handleGetPlayers handles the message that is sent when the
-// frontend needs an update on the players
+// frontend needs an update on the players.
 func handleGetPlayers(currentGame *game.Game) map[string]interface{} {
 	return getPlayersMessage(currentGame)
 }
@@ -263,16 +270,18 @@ func handleQueryRole(currentGame *game.Game, player *users.User) map[string]inte
 // handleQueryLeader handles the request from the frontend for who
 // the leader of the current mission is.
 func handleQueryLeader(currentGame *game.Game, player *users.User) map[string]interface{} {
-	var returnMessage = make(map[string]interface{})
+	var returnMessage map[string]interface{}
 
 	isLeader := currentGame.GetCurrentMission().IsUserCurrentMissionLeader(player)
 
-	returnMessage[MESSAGE_KEY] = QUERY_LEADER_RESULT_MESSAGE
-	returnMessage[IS_LEADER_KEY] = isLeader
-
 	if isLeader {
+		returnMessage = make(map[string]interface{})
+		returnMessage[MESSAGE_KEY] = QUERY_LEADER_RESULT_MESSAGE
+		returnMessage[IS_LEADER_KEY] = isLeader
 		returnMessage[PLAYERS_KEY] = currentGame.GetUsers()
 		returnMessage[TEAM_SIZE_KEY] = currentGame.GetCurrentMission().GetCurrentMissionTeamSize()
+	} else {
+		returnMessage = getShowTextMessage("You are not the leader.")
 	}
 
 	return returnMessage
@@ -294,13 +303,12 @@ func handleStartMission(message map[string]interface{}, currentGame *game.Game, 
 			}
 		}
 	}
-	teamUsernames := make([]string, len(teamIds))
+
 	teamUsers := make([]*users.User, len(teamIds))
 	for i, teamId := range teamIds {
 		parsedTeamId, _ := strconv.Atoi(teamId)
 		user := users.LookupUserById(parsedTeamId)
 		if user.IsValidUser() {
-			teamUsernames[i] = user.Username
 			teamUsers[i] = user
 		} else {
 			utils.LogMessage("User Id for team not found: "+teamId, utils.RGAME_LOG_PATH)
@@ -310,9 +318,7 @@ func handleStartMission(message map[string]interface{}, currentGame *game.Game, 
 	gameId := currentGame.GameId
 	currentGame.GetCurrentMission().CreateTeam(teamUsers)
 
-	var teamApprovalMessage = make(map[string]interface{})
-	teamApprovalMessage[MESSAGE_KEY] = TEAM_APPROVAL_MESSAGE
-	teamApprovalMessage[TEAMS_KEY] = teamUsernames
+	var teamApprovalMessage = getTeamApprovalMessage(currentGame)
 	sendMessageToSubscribers(gameId, teamApprovalMessage, pubSocket)
 
 	sendMissionsMessage(currentGame, pubSocket)
@@ -372,19 +378,24 @@ func handleApproveTeam(message map[string]interface{}, currentGame *game.Game, c
 // asking if the requesting user is on the current mission.
 // Assumes that the mission has been approved.
 func handleQueryIsOnMission(currentGame *game.Game, connectingPlayer *users.User) map[string]interface{} {
-	var returnMessage = make(map[string]interface{})
+	var returnMessage map[string]interface{}
 
 	isOnMission := currentGame.GetCurrentMission().IsUserOnCurrentMission(connectingPlayer)
 
-	returnMessage[MESSAGE_KEY] = QUERY_IS_ON_MISSION_RESULT_MESSAGE
-	returnMessage[IS_ON_MISSION_KEY] = isOnMission
+	if isOnMission {
+		returnMessage = make(map[string]interface{})
+		returnMessage[MESSAGE_KEY] = QUERY_IS_ON_MISSION_RESULT_MESSAGE
+		returnMessage[IS_ON_MISSION_KEY] = isOnMission
+	} else {
+		returnMessage = getShowTextMessage("Waiting for mission to finish...")
+	}
 
 	return returnMessage
 }
 
 // handleMissionOutcome handles the message from the frontend
 // after a player has put in their mission outcome - a "success"
-// or a "fail"
+// or a "fail".
 func handleMissionOutcome(message map[string]interface{}, currentGame *game.Game, connectingPlayer *users.User, pubSocket *zmq.Socket) map[string]interface{} {
 	var returnMessage = make(map[string]interface{})
 
@@ -426,8 +437,52 @@ func handleMissionOutcome(message map[string]interface{}, currentGame *game.Game
 	return returnMessage
 }
 
+// handleUpdateGameProgress handles the message when a player
+// leaves the game then comes back and requests the current
+// game state.
+func handleUpdateGameProgress(message map[string]interface{}, currentGame *game.Game, connectingPlayer *users.User, pubSocket *zmq.Socket) map[string]interface{} {
+	sendMissionsMessage(currentGame, pubSocket)
+
+	returnMessage := make(map[string]interface{})
+
+	// We assume the that game is IN_PROGRESS status, since we only allow them
+	// to ask for an update game progress when the game is still IN_PROGRESS
+	// during player connect
+	if len(currentGame.GetCurrentMission().Team) == 0 {
+		// Waiting for the leader to pick team. The connecting user
+		// could have been the leader, so respond as if they were
+		// asking if they are the leader
+		returnMessage = handleQueryLeader(currentGame, connectingPlayer)
+	} else if !currentGame.GetCurrentMission().IsAllVotesCollected() {
+		// Waiting for all votes to come in. But has the connecting player
+		// already voted?
+		if currentGame.GetCurrentMission().Votes[connectingPlayer.UserId] == "" {
+			// Connecting player has not yet voted, send a request to
+			// gain approval for the team
+			returnMessage = getTeamApprovalMessage(currentGame)
+		} else {
+			// Connecting player has voted. Show some text.
+			returnMessage = getShowTextMessage("You have already voted. Waiting for all votes to come in.")
+		}
+	} else {
+		// Mission has been approved. People are going on a mission.
+		if currentGame.GetCurrentMission().Team[connectingPlayer.UserId] != game.OUTCOME_NONE {
+			// Player was on a mission AND already submitted mission outcome.
+			// Show some text.
+			returnMessage = getShowTextMessage("You have already submitted the mission outcome. Waiting for all outcomes to come in.")
+		} else {
+			// They haven't voted yet or are not on the mission, so act
+			// as if the mission just started and query is on mission should
+			// handle both cases
+			returnMessage = handleQueryIsOnMission(currentGame, connectingPlayer)
+		}
+	}
+
+	return returnMessage
+}
+
 // getPlayersMessage builds up the message to update the list of
-// current players
+// current players.
 func getPlayersMessage(currentGame *game.Game) map[string]interface{} {
 	usernames := getPlayerUsernames(currentGame)
 
@@ -438,6 +493,32 @@ func getPlayersMessage(currentGame *game.Game) map[string]interface{} {
 	playersMessage[GAME_ID_KEY] = currentGame.GameId
 
 	return playersMessage
+}
+
+// getTeamApprovalMessage builds up the message to ask for approval
+// for the given game's current mission's team.
+func getTeamApprovalMessage(currentGame *game.Game) map[string]interface{} {
+	teamUsernames := make([]string, 0)
+	for userId, _ := range currentGame.GetCurrentMission().Team {
+		user := users.LookupUserById(userId)
+		if user.IsValidUser() {
+			teamUsernames = append(teamUsernames, user.Username)
+		}
+	}
+
+	var teamApprovalMessage = make(map[string]interface{})
+	teamApprovalMessage[MESSAGE_KEY] = TEAM_APPROVAL_MESSAGE
+	teamApprovalMessage[TEAMS_KEY] = teamUsernames
+
+	return teamApprovalMessage
+}
+
+// getShowTextMessage builds up the message to show some text to the user.
+func getShowTextMessage(text string) map[string]interface{} {
+	var showTextMessage = make(map[string]interface{})
+	showTextMessage[MESSAGE_KEY] = SHOW_TEXT_MESSAGE
+	showTextMessage[TEXT_KEY] = text
+	return showTextMessage
 }
 
 // getPlayerUsernames retrieves just the usernames of the players of the
@@ -576,6 +657,8 @@ func main() {
 					returnMessage = handleQueryIsOnMission(currentGame, user)
 				case parsedMessage[MESSAGE_KEY] == MISSION_OUTCOME_MESSAGE:
 					returnMessage = handleMissionOutcome(parsedMessage, currentGame, user, pubSocket)
+				case parsedMessage[MESSAGE_KEY] == UPDATE_GAME_PROGRESS:
+					returnMessage = handleUpdateGameProgress(parsedMessage, currentGame, user, pubSocket)
 				}
 			}
 		}
